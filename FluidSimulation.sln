@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2015
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FluidSimulation.CSharp", "FluidSimulation.CSharp.csproj", "{1962AA50-3CD8-16D8-032E-337F86E928BF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1962AA50-3CD8-16D8-032E-337F86E928BF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1962AA50-3CD8-16D8-032E-337F86E928BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1962AA50-3CD8-16D8-032E-337F86E928BF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1962AA50-3CD8-16D8-032E-337F86E928BF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
