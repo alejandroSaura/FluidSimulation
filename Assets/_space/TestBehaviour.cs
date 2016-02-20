@@ -4,38 +4,49 @@ using System.Collections.Generic;
 
 public class TestBehaviour : MonoBehaviour
 {
-    UniformGrid<int> uniformGrid;
+    public bool[] seeLayer;
+
+    NestedGrid<Matrix3x3> nestedGrid;
 
     void Start()
     {        
-        uniformGrid = new UniformGrid<int>(4096, new Vector3(1,1,1), new Vector3(5, 5, 5), true);
-        uniformGrid.Init();
+        nestedGrid = new NestedGrid<Matrix3x3>();
+        nestedGrid.Initialize(new UniformGrid<Matrix3x3>(4096, new Vector3(0, 0, 0), new Vector3(5, 5, 5), true));
+
+        seeLayer = new bool[nestedGrid.GetDepth()];
     }
 
     // to view the grid.
     void OnDrawGizmos()
     {
-        if (uniformGrid != null)
+        if (nestedGrid != null && nestedGrid.mLayers.Count != 0)
         {
-            Gizmos.color = new Vector4(0.5f, 0.5f, 1, 0.5f);
-
-            Vector3 cellExtent = uniformGrid.GetCellExtent();
-            Vector3 gridExtent = uniformGrid.GetExtent();
-            Vector3 numCells = new Vector3(uniformGrid.GetNumCells(0), uniformGrid.GetNumCells(1), uniformGrid.GetNumCells(2));
-            Vector3 gridOrigin = uniformGrid.GetMinCorner();
-
-            for (int i = 0; i < numCells.x; ++i)
+            for (int u = 0; u < nestedGrid.mLayers.Count; ++u)
             {
-                for (int j = 0; j < numCells.y; ++j)
+                if (seeLayer[u] == false) continue;
+
+                UniformGrid<Matrix3x3> grid = nestedGrid.mLayers[u];
+
+                Gizmos.color = new Vector4(1, 1 - 1 / ((float)u + 1), 1 - 1 / ((float)u + 1), 1.1f - 1 / ((float)u + 1));
+
+                Vector3 cellExtent = grid.GetCellExtent();
+                Vector3 gridExtent = grid.GetExtent();
+                Vector3 numCells = new Vector3(grid.GetNumCells(0), grid.GetNumCells(1), grid.GetNumCells(2));
+                Vector3 gridOrigin = grid.GetMinCorner();
+
+                for (int i = 0; i < numCells.x; ++i)
                 {
-                    for (int k = 0; k < numCells.z; ++k)
+                    for (int j = 0; j < numCells.y; ++j)
                     {
-                        Gizmos.DrawWireCube(gridOrigin + new Vector3(cellExtent.x * i, cellExtent.y * j, cellExtent.z * k), cellExtent);
+                        for (int k = 0; k < numCells.z; ++k)
+                        {
+                            Gizmos.DrawWireCube(gridOrigin + new Vector3(cellExtent.x * i + cellExtent.x/2, cellExtent.y * j + cellExtent.y / 2, cellExtent.z * k + cellExtent.z / 2), cellExtent);
+                        }
                     }
                 }
             }
 
         }
     }
-        
+
 }

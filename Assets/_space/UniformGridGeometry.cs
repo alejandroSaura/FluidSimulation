@@ -84,7 +84,7 @@ public class UniformGridGeometry
         (x and y) since the z size is zero.  In this example, the cells
         would be nearly square rectangles (instead of boxes).
     */
-    public void DefineShape(uint uNumElements, Vector3 posMin, Vector3 posMax, bool bPowerOf2)
+    public virtual void DefineShape(uint uNumElements, Vector3 posMin, Vector3 posMax, bool bPowerOf2)
     {
         mMinCorner = posMin;
         mGridExtent = (posMax - posMin) * global.GlobalVar.Nudge; // slightly expand size to ensure robust containment even with roundoff
@@ -167,7 +167,7 @@ public class UniformGridGeometry
 
         The number of cells is decimated.  The number of points is different.
     */
-    public void Decimate(UniformGridGeometry src, int iDecimation)
+    public virtual void Decimate(UniformGridGeometry src, int iDecimation)
     {
         mGridExtent = src.mGridExtent;
         mMinCorner = src.mMinCorner;
@@ -294,7 +294,7 @@ public class UniformGridGeometry
     /*
         Clear out any existing shape information
     */
-    protected void Clear()
+    public virtual void Clear()
     {
         mMinCorner =
         mGridExtent =
