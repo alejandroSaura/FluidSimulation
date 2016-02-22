@@ -9,7 +9,10 @@ public class TestBehaviour : MonoBehaviour
     NestedGrid<Matrix3x3> nestedGrid;
 
     void Start()
-    {        
+    {
+        Matrix3x3 m = new Matrix3x3();
+        m = (Matrix3x3)(5 * m);
+
         nestedGrid = new NestedGrid<Matrix3x3>();
         nestedGrid.Initialize(new UniformGrid<Matrix3x3>(4096, new Vector3(0, 0, 0), new Vector3(5, 5, 5), true));
 

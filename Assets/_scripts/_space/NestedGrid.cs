@@ -4,10 +4,19 @@ using System;
 
 
 
-public class NestedGrid<ItemT> where ItemT : IMatrix3x3
+public class NestedGrid<ItemT> where ItemT : IgridItem
 {
     public List<UniformGrid<ItemT>> mLayers;   // Dynamic array of UniformGrids
     uint[][] mDecimations;   // Cache of cluster sizes
+
+    // Return number of layers in tree
+    public int GetDepth() { return mLayers.Count; }
+
+    public uint[] GetDecimations(int parentLayerIndex)
+    {
+        return mDecimations[parentLayerIndex];
+    }
+
 
     // Construc a blank nested uniform grid spatial partition
     public NestedGrid()
@@ -21,6 +30,17 @@ public class NestedGrid<ItemT> where ItemT : IMatrix3x3
         mLayers = new List<UniformGrid<ItemT>>();
         Initialize(layer);
     }
+
+    public void Clear()
+    {
+        for (int iLayer = 0; iLayer < GetDepth(); ++iLayer)
+        {
+            mLayers[iLayer].Clear();
+        }
+        mLayers.Clear();
+    }
+
+    private NestedGrid(NestedGrid<ItemT> other) { } // disallow copy construction
 
     public void Initialize(UniformGrid<ItemT> srcLayer)
     {
@@ -50,7 +70,6 @@ public class NestedGrid<ItemT> where ItemT : IMatrix3x3
         This method laso allocates memory for the newly added layer,
         and initializes its content with the default constructor.
     */
-
     public void AddLayer(UniformGridGeometry layerTemplate, int iDecimation)
     {
         mLayers.Add(new UniformGrid<ItemT>());
@@ -58,10 +77,7 @@ public class NestedGrid<ItemT> where ItemT : IMatrix3x3
         mLayers[count - 1].Decimate(layerTemplate, iDecimation);
         mLayers[count - 1].Init();
     }
-
-    // Return number of layers in tree
-    public int GetDepth() { return mLayers.Count; }
-
+        
     /*
         Get layer (uniformGrid) at specific depth of the tree.
         index - depth of the layer to obtain. 
@@ -73,12 +89,7 @@ public class NestedGrid<ItemT> where ItemT : IMatrix3x3
         {
             return mLayers[(int)offset];
         }
-    }
-
-    public uint[] GetDecimations(int parentLayerIndex)
-    {
-        return mDecimations[parentLayerIndex];
-    }
+    }   
 
     /*
         Get indices of minimal cell in child layer of cluster represented by specified cell in parent layer.
@@ -97,18 +108,7 @@ public class NestedGrid<ItemT> where ItemT : IMatrix3x3
         clusterMinIndices[2] = indicesOfParentCell[2] * decimations[2];
 
         return clusterMinIndices;
-    }
-
-    public void Clear()
-    {
-        for (int iLayer = 0; iLayer < GetDepth(); ++iLayer)
-        {
-            mLayers[iLayer].Clear();
-        }
-        mLayers.Clear();
-    }
-
-    private NestedGrid(NestedGrid<ItemT> other) {} // disallow copy construction
+    }  
 
 
     /*

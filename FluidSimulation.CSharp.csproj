@@ -63,13 +63,16 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Assets\GlobalVars.cs" />
-    <Compile Include="Assets\_space\IMatrix3x3.cs" />
-    <Compile Include="Assets\_space\Matrix3x3.cs" />
-    <Compile Include="Assets\_space\NestedGrid.cs" />
-    <Compile Include="Assets\_space\TestBehaviour.cs" />
-    <Compile Include="Assets\_space\UniformGrid.cs" />
-    <Compile Include="Assets\_space\UniformGridGeometry.cs" />
+    <Compile Include="Assets\_scripts\GlobalVars.cs" />
+    <Compile Include="Assets\_scripts\TestBehaviour.cs" />
+    <Compile Include="Assets\_scripts\_math\IgridItem.cs" />
+    <Compile Include="Assets\_scripts\_math\Matrix3x3.cs" />
+    <Compile Include="Assets\_scripts\_math\Vector.cs" />
+    <Compile Include="Assets\_scripts\_space\NestedGrid.cs" />
+    <Compile Include="Assets\_scripts\_space\UniformGrid.cs" />
+    <Compile Include="Assets\_scripts\_space\UniformGridGeometry.cs" />
+    <Compile Include="Assets\_scripts\_vorton\Vorton.cs" />
+    <Compile Include="Assets\_scripts\_vorton\VortonSim.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\SyntaxTree\UnityVS\2015\UnityVS.CSharp.targets" />
 </Project>

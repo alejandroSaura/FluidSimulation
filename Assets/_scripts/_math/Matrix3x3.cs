@@ -2,7 +2,7 @@
 using System.Collections;
 using System;
 
-public class Matrix3x3 : IMatrix3x3
+public class Matrix3x3 : IgridItem
 {
     Vector3 x;
     Vector3 y;
@@ -11,5 +11,5 @@ public class Matrix3x3 : IMatrix3x3
     public Matrix3x3()
     {
 
-    }
+    }   
 }

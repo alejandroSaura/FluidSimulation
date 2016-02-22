@@ -1,13 +1,13 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public abstract class IMatrix3x3
+public abstract class IgridItem
 {
     Vector3 x;
     Vector3 y;
     Vector3 z;
 
-    public static IMatrix3x3 operator *(float operand, IMatrix3x3 item)
+    public static IgridItem operator *(float operand, IgridItem item)
     {
         item.x *= operand;
         item.y *= operand;
@@ -15,7 +15,7 @@ public abstract class IMatrix3x3
 
         return item;
     }
-    public static IMatrix3x3 operator +(IMatrix3x3 item1, IMatrix3x3 item2)
+    public static IgridItem operator +(IgridItem item1, IgridItem item2)
     {
         item1.x += item2.x;
         item1.y += item2.y;
@@ -23,4 +23,5 @@ public abstract class IMatrix3x3
 
         return item1;
     }
+
 }

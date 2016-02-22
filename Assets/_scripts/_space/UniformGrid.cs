@@ -5,7 +5,7 @@ using System;
 /*
     Templated container for fast spatial lookups and insertions
 */
-public class UniformGrid<ItemT> : UniformGridGeometry where ItemT : IMatrix3x3
+public class UniformGrid<ItemT> : UniformGridGeometry where ItemT : IgridItem
 {
     // Data:
     List<ItemT> mContents = new List<ItemT>();   // 3D array of items.
@@ -86,14 +86,14 @@ public class UniformGrid<ItemT> : UniformGridGeometry where ItemT : IMatrix3x3
     //    }
     //}
 
-    //T MIN2<T>(T x, T y) where T : IMatrix3x3
+    //T MIN2<T>(T x, T y) where T : IItemT
     //{
     //    if (x.CompareTo(y) < 0)
     //        return x;
     //    else
     //        return y;
     //}
-    //T MAX2<T>(T x, T y) where T : IMatrix3x3
+    //T MAX2<T>(T x, T y) where T : IItemT
     //{
     //    if (x.CompareTo(y) > 0)
     //        return x;
@@ -106,7 +106,7 @@ public class UniformGrid<ItemT> : UniformGridGeometry where ItemT : IMatrix3x3
         Interpolate values from Grid to get value at a given position
         vPosition - position to sample
     */
-    IMatrix3x3 Interpolate(Vector3 vPosition)
+    IgridItem Interpolate(Vector3 vPosition)
     {
         uint[] indices = new uint[3];
         indices = IndicesOfPosition(vPosition);
@@ -128,7 +128,7 @@ public class UniformGrid<ItemT> : UniformGridGeometry where ItemT : IMatrix3x3
         uint offsetX0Y1Z1 = offsetX0Y0Z0 + numXY + GetNumPoints(0);
         uint offsetX1Y1Z1 = offsetX0Y0Z0 + numXY + GetNumPoints(0) + 1;
 
-        IMatrix3x3 vResult = ( oneMinusTween.x * oneMinusTween.y * oneMinusTween.z * (this)[offsetX0Y0Z0]
+        IgridItem vResult = ( oneMinusTween.x * oneMinusTween.y * oneMinusTween.z * (this)[offsetX0Y0Z0]
                     + tween.x * oneMinusTween.y * oneMinusTween.z * (this)[offsetX1Y0Z0]
                     + oneMinusTween.x * tween.y * oneMinusTween.z * (this)[offsetX0Y1Z0]
                     + tween.x * tween.y * oneMinusTween.z * (this)[offsetX1Y1Z0]
@@ -141,7 +141,7 @@ public class UniformGrid<ItemT> : UniformGridGeometry where ItemT : IMatrix3x3
     }
 
     // Insert given value into grid at given position
-    //public void Insert(Vector3 vPosition, IMatrix3x3 item)
+    //public void Insert(Vector3 vPosition, ItemT item)
     //{
     //    uint[] indices = new uint[3]; // Indices of grid cell containing position.
     //    indices = IndicesOfPosition(vPosition);
@@ -149,8 +149,8 @@ public class UniformGrid<ItemT> : UniformGridGeometry where ItemT : IMatrix3x3
     //    vMinCorner = PositionFromIndices(indices);
     //    uint offsetX0Y0Z0 = OffsetFromIndices(indices);
     //    Vector3 vDiff = vPosition - vMinCorner; // Relative location of position within its containing grid cell.
-    //    Vector3 tween =  new Vector3(vDiff.x * GetCellsPerExtent().x, vDiff.y * GetCellsPerExtent().y, vDiff.z * GetCellsPerExtent().z);
-    //    Vector3 oneMinusTween =  new Vector3(1.0f, 1.0f, 1.0f) - tween;
+    //    Vector3 tween = new Vector3(vDiff.x * GetCellsPerExtent().x, vDiff.y * GetCellsPerExtent().y, vDiff.z * GetCellsPerExtent().z);
+    //    Vector3 oneMinusTween = new Vector3(1.0f, 1.0f, 1.0f) - tween;
     //    uint numXY = GetNumPoints(0) * GetNumPoints(1);
     //    uint offsetX1Y0Z0 = offsetX0Y0Z0 + 1;
     //    uint offsetX0Y1Z0 = offsetX0Y0Z0 + GetNumPoints(0);
