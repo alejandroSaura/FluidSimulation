@@ -6,15 +6,15 @@ public class TestBehaviour : MonoBehaviour
 {
     public bool[] seeLayer;
 
-    NestedGrid<Matrix3x3> nestedGrid;
+    NestedGrid<Vorton> nestedGrid;
 
     void Start()
     {
-        Matrix3x3 m = new Matrix3x3();
-        m = (Matrix3x3)(5 * m);
+        Vector m = new Vector();
+        m = (Vector)(5 * m);
 
-        nestedGrid = new NestedGrid<Matrix3x3>();
-        nestedGrid.Initialize(new UniformGrid<Matrix3x3>(4096, new Vector3(0, 0, 0), new Vector3(5, 5, 5), true));
+        nestedGrid = new NestedGrid<Vorton>();
+        nestedGrid.Initialize(new UniformGrid<Vorton>(4096, new Vector3(0, 0, 0), new Vector3(5, 5, 5), true));
 
         seeLayer = new bool[nestedGrid.GetDepth()];
     }
@@ -28,7 +28,7 @@ public class TestBehaviour : MonoBehaviour
             {
                 if (seeLayer[u] == false) continue;
 
-                UniformGrid<Matrix3x3> grid = nestedGrid.mLayers[u];
+                UniformGrid<Vorton> grid = nestedGrid.mLayers[u];
 
                 Gizmos.color = new Vector4(1, 1 - 1 / ((float)u + 1), 1 - 1 / ((float)u + 1), 1.1f - 1 / ((float)u + 1));
 

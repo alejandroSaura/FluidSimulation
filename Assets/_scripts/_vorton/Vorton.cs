@@ -11,7 +11,7 @@ public class Vorton : IgridItem
     Vector3 mVelocity;   ///< Velocity of this vorton -- used to cache value obtained during advection, to optimize collision response.
     
     /*
-    Construct a vortex particle
+        Construct a vortex particle
     */
     public Vorton()
     {
@@ -72,9 +72,6 @@ public class Vorton : IgridItem
         // with a improvement to mitigate the singularity inside the vorton
         vVelocity += Vector3.Cross(global.GlobalVar.OneOverFourPi * (8.0f * radius2 * mRadius) * mVorticity, vNeighborToSelf * distLaw);
     }
-
-
-
 
     /*
     Compute vorticity required to obtain a given velocity, due to a single vorton at a given position.
