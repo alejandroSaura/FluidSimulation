@@ -12,8 +12,6 @@ namespace global
         public const float OneOverFourPi = 1.0f / FourPi;
         public const float Nudge = 1.0f + FLT_EPSILON;
         public static float sAvoidSingularity = Mathf.Pow(float.MinValue, 1.0f / 3.0f);
-        public static bool useMultiThreads = true;
-
 
         public static float finvsqrtf(float val)
         {
@@ -27,9 +25,8 @@ namespace global
             return y;
         }
     }
-
     
-
+    // add-on to the standard List class to resize the list
     public static class ListExtra
     {
         public static void Resize<T>(List<T> list, int size, T element = default(T))

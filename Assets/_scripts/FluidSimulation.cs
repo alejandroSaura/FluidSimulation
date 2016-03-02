@@ -1,7 +1,10 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
 
+[RequireComponent(typeof(ParticleSystem))]
 public class FluidSimulation : MonoBehaviour {
+
+    public bool useMultiThreads = true;
 
     public float viscosity = 0.05f;
     public float density = 1.0f;
@@ -27,8 +30,8 @@ public class FluidSimulation : MonoBehaviour {
     {
         numVortonsMax = numCellsPerDim * numCellsPerDim * numCellsPerDim;
 
-        mVortonSim = new VortonSim(viscosity, density);
-        mVortonSim.Clear();
+        mVortonSim = new VortonSim(viscosity, density, useMultiThreads);
+        //mVortonSim.Clear();
 
         List<Vorton> vortons = mVortonSim.GetVortons();
         //AssignVorticity(vortons, 2.0f * fMagnitude, numVortonsMax, VortexRing(fRadius, fThickness, Vec3(1.0f, 0.0f, 0.0f)));
@@ -57,6 +60,7 @@ public class FluidSimulation : MonoBehaviour {
     {
         if (mVortonSim != null)
         {
+            mVortonSim.bMultithreads = useMultiThreads;
             mVortonSim.density = density;
             mVortonSim.viscosity = viscosity;
         }

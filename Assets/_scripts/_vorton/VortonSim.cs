@@ -12,6 +12,12 @@ using System;
 */
 public class VortonSim
 {
+    public bool mUseMultithreads;
+    public bool bMultithreads
+    {
+        set { mUseMultithreads = value; }
+    }
+
     float mViscosity;   ///< Viscosity.  Used to compute viscous diffusion.
     public float viscosity
     {        
@@ -41,8 +47,10 @@ public class VortonSim
     List<Particle> mTracers;   ///< Passive tracer particles
 
     // vorton simulation constructor
-    public VortonSim(float viscosity = 0.0f, float density = 1.0f)
+    public VortonSim(float viscosity = 0.0f, float density = 1.0f, bool useMultithreads = true)
     {
+        mUseMultithreads = useMultithreads;
+
         mMinCorner = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
         mMaxCorner = (-mMinCorner);
         mViscosity = (viscosity);
@@ -67,11 +75,11 @@ public class VortonSim
     */
     public void Initialize(uint numTracersPerCellCubeRoot)
     {
-        //if (global.GlobalVar.useMultiThreads)
-        //{
-        //    // Query environment for number of processors on this machine.
-        //    int numberOfProcessors = SystemInfo.processorCount;            
-        //}       
+        if (mUseMultithreads)
+        {
+            // Query environment for number of processors on this machine.
+            int numberOfProcessors = SystemInfo.processorCount;
+        }
 
         //ConservedQuantities(mCirculationInitial, mLinearImpulseInitial);
         //ComputeAverageVorticity();
@@ -110,7 +118,6 @@ public class VortonSim
         vMinCorner - minimal corner of axis-aligned bounding box
         vMaxCorner - maximal corner of axis-aligned bounding box
         vPoint - point to include in bounding box
-
     */
     public void UpdateBoundingBox(ref Vector3 vMinCorner , ref Vector3 vMaxCorner , Vector3 vPoint )
     {
