@@ -12,17 +12,31 @@ using System;
 */
 public class VortonSim
 {
+    float mViscosity;   ///< Viscosity.  Used to compute viscous diffusion.
+    public float viscosity
+    {        
+        set { mViscosity = value; }
+    }
+    float mFluidDensity;   ///< Uniform density of fluid.
+    public float density
+    {
+        set { mFluidDensity = value; }
+    }
+    
 
     List<Vorton> mVortons;   ///< Dynamic array of tiny vortex elements
+    public List<Vorton> GetVortons() { return mVortons; }
+
     NestedGrid<Vorton> mInfluenceTree;   ///< Influence tree
     UniformGrid<Vector> mVelGrid;   ///< Uniform grid of velocity values
+
     Vector3 mMinCorner;   ///< Minimal corner of axis-aligned bounding box
     Vector3 mMaxCorner;   ///< Maximal corner of axis-aligned bounding box
-    float mViscosity;   ///< Viscosity.  Used to compute viscous diffusion.
+    
     Vector3 mCirculationInitial;   ///< Initial circulation, which should be conserved when viscosity is zero.
     Vector3 mLinearImpulseInitial;   ///< Initial linear impulse, which should be conserved when viscosity is zero.
     Vector3 mAverageVorticity;   ///< Hack, average vorticity used to compute a kind of viscous vortex diffusion.
-    float mFluidDensity;   ///< Uniform density of fluid.
+    
     float mMassPerParticle;   ///< Mass of each fluid particle (vorton or tracer).
     List<Particle> mTracers;   ///< Passive tracer particles
 
@@ -37,6 +51,11 @@ public class VortonSim
         mAverageVorticity = new Vector3(0.0f, 0.0f, 0.0f);
         mFluidDensity = (density);
         mMassPerParticle = (0.0f);
+
+        mVortons = new List<Vorton>();
+        mInfluenceTree = new NestedGrid<Vorton>();
+        mVelGrid = new UniformGrid<Vector>();
+        mTracers = new List<Particle>();
     }
 
     /*
@@ -72,6 +91,19 @@ public class VortonSim
         //}
     }
 
+    public void Update(float timeStep)
+    {
+        Debug.Log("Updating Vorton Simulation");
+    }
+
+    public void Clear()
+    {
+        mVortons.Clear();
+        mInfluenceTree.Clear();
+        mVelGrid.Clear();
+        mTracers.Clear();
+    }
+
     /*
         Update axis-aligned bounding box corners to include given point
 
@@ -98,12 +130,6 @@ public class VortonSim
         mTracers.RemoveAt(iTracer);        
     }
 
-    void Clear()
-    {
-        mVortons.Clear();
-        mInfluenceTree.Clear();
-        mVelGrid.Clear();
-        mTracers.Clear();
-    }
+    
 
 }

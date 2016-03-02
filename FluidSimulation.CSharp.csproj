@@ -63,8 +63,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\TestBehaviour.cs" />
+    <Compile Include="Assets\_scripts\FluidSimulation.cs" />
     <Compile Include="Assets\_scripts\GlobalVars.cs" />
-    <Compile Include="Assets\_scripts\TestBehaviour.cs" />
     <Compile Include="Assets\_scripts\_math\IgridItem.cs" />
     <Compile Include="Assets\_scripts\_math\Matrix3x3.cs" />
     <Compile Include="Assets\_scripts\_math\Vector.cs" />
