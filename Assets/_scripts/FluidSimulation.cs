@@ -150,13 +150,16 @@ public class FluidSimulation : MonoBehaviour
 
     void OnDrawGizmos()
     {
-        Gizmos.color = new Color(0.8f, 0.8f, 1, 0.5f);
+        
         if (mVortonSim == null) return;
         List<Vorton> vortons = mVortonSim.GetVortons();
         if (vortons == null) return;
         for(int i = 0; i < vortons.Count; ++i)
         {
+            Gizmos.color = new Color(0.8f, 0.8f, 1, 0.5f);
             Gizmos.DrawSphere(vortons[i].position, vortons[i].radius);
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(vortons[i].position, vortons[i].position + vortons[i].vorticity.normalized*vortons[i].radius);
         }
     }
 

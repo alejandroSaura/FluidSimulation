@@ -11,6 +11,10 @@ public class Vorton : IgridItem
         get { return mPosition; }
     }
     Vector3 mVorticity;   ///< Vorticity of vortex particle
+    public Vector3 vorticity
+    {
+        get { return mVorticity; }
+    }
     float mRadius;  ///< Radius of vortex particle
     public float radius
     {
