@@ -6,8 +6,16 @@ public class Vorton : IgridItem
 {
 
     Vector3 mPosition;   ///< Position (in world units) of center of vortex particle
+    public Vector3 position
+    {
+        get { return mPosition; }
+    }
     Vector3 mVorticity;   ///< Vorticity of vortex particle
     float mRadius;  ///< Radius of vortex particle
+    public float radius
+    {
+        get { return mRadius; }
+    }
     Vector3 mVelocity;   ///< Velocity of this vorton -- used to cache value obtained during advection, to optimize collision response.
     
     /*
@@ -34,7 +42,7 @@ public class Vorton : IgridItem
         mPosition = that.mPosition;
         mVorticity = that.mVorticity;
         mRadius = that.mRadius;    
-    }
+    }   
 
     /*
     Compute velocity induced by this vortex element (a vorton)

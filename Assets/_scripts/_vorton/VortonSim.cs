@@ -99,6 +99,11 @@ public class VortonSim
         //}
     }
 
+    public void AddVorton(Vorton vorton)
+    {
+        mVortons.Add(vorton);
+    }
+
     public void Update(float timeStep)
     {
         Debug.Log("Updating Vorton Simulation");

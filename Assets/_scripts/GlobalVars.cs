@@ -12,6 +12,7 @@ namespace global
         public const float OneOverFourPi = 1.0f / FourPi;
         public const float Nudge = 1.0f + FLT_EPSILON;
         public static float sAvoidSingularity = Mathf.Pow(float.MinValue, 1.0f / 3.0f);
+        public static float sTiny = Mathf.Exp(0.5f * (Mathf.Log(FLT_EPSILON) + Mathf.Log(float.Epsilon)));
 
         public static float finvsqrtf(float val)
         {

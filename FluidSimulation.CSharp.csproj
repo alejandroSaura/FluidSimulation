@@ -63,6 +63,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\DebugDrawingExtension\DebugExtension.cs" />
+    <Compile Include="Assets\DebugDrawingExtension\Example\Example.cs" />
     <Compile Include="Assets\TestBehaviour.cs" />
     <Compile Include="Assets\_scripts\FluidSimulation.cs" />
     <Compile Include="Assets\_scripts\GlobalVars.cs" />
@@ -72,8 +74,13 @@
     <Compile Include="Assets\_scripts\_space\NestedGrid.cs" />
     <Compile Include="Assets\_scripts\_space\UniformGrid.cs" />
     <Compile Include="Assets\_scripts\_space\UniformGridGeometry.cs" />
+    <Compile Include="Assets\_scripts\_vorticityDistributions\IVorticityDistribution.cs" />
+    <Compile Include="Assets\_scripts\_vorticityDistributions\VortexRing.cs" />
     <Compile Include="Assets\_scripts\_vorton\Vorton.cs" />
     <Compile Include="Assets\_scripts\_vorton\VortonSim.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Assets\DebugDrawingExtension\readme.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\SyntaxTree\UnityVS\2015\UnityVS.CSharp.targets" />
 </Project>
