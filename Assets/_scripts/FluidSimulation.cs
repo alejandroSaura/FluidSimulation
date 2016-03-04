@@ -23,7 +23,7 @@ public class FluidSimulation : MonoBehaviour
     public bool FLOW_AFFECTS_BODY = true;
 
     VortonSim mVortonSim;
-    IVorticityDistribution vorticityDistribution;
+    //IVorticityDistribution vorticityDistribution;
 
 	void Start ()
     {
@@ -34,11 +34,15 @@ public class FluidSimulation : MonoBehaviour
         mVortonSim = new VortonSim(viscosity, density, useMultiThreads);
         //mVortonSim.Clear();
 
-        vorticityDistribution = gameObject.GetComponentInChildren<IVorticityDistribution>();
+        //IVorticityDistribution vorticityDistribution = gameObject.GetComponentInChildren<IVorticityDistribution>();
+        //AssignVorticity(2.0f * magnitude, (uint)numVortonsMax, vorticityDistribution);
 
-        
-        //AssignVorticity(vortons, 2.0f * magnitude, (uint)numVortonsMax, new VortexRing(radius, thickness, new Vector3(1.0f, 0.0f, 0.0f)));
-        AssignVorticity(2.0f * magnitude, (uint)numVortonsMax, vorticityDistribution);
+        // distribute numVortonsMax between all vortices of the simulation.
+        GameObject[] vortices = GameObject.FindGameObjectsWithTag("Vortex");
+        for(int i = 0; i < vortices.Length; ++i)
+        {
+            AssignVorticity(2.0f * magnitude, (uint)(numVortonsMax/vortices.Length), vortices[i].GetComponent<IVorticityDistribution>());
+        }        
 
         Initialize(numTracersPer);
     }    

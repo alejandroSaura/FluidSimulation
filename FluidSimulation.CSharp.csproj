@@ -75,6 +75,7 @@
     <Compile Include="Assets\_scripts\_space\UniformGrid.cs" />
     <Compile Include="Assets\_scripts\_space\UniformGridGeometry.cs" />
     <Compile Include="Assets\_scripts\_vorticityDistributions\IVorticityDistribution.cs" />
+    <Compile Include="Assets\_scripts\_vorticityDistributions\VortexNoise.cs" />
     <Compile Include="Assets\_scripts\_vorticityDistributions\VortexRing.cs" />
     <Compile Include="Assets\_scripts\_vorton\Vorton.cs" />
     <Compile Include="Assets\_scripts\_vorton\VortonSim.cs" />
