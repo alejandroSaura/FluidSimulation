@@ -1,9 +1,12 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
 
-[RequireComponent(typeof(ParticleSystem))]
+//[RequireComponent(typeof(ParticleSystem))]
 public class FluidSimulation : MonoBehaviour
 {
+    ParticleSystem particleSystem;
+    List<ParticleSystem.Particle> tracers;
+
     public bool debugVortons = true;
     public bool debugInfluenceTree = true;
 
@@ -45,9 +48,26 @@ public class FluidSimulation : MonoBehaviour
         for(int i = 0; i < vortices.Length; ++i)
         {
             AssignVorticity(2.0f * magnitude, (uint)(numVortonsMax/vortices.Length), vortices[i].GetComponent<IVorticityDistribution>());
-        }        
+        }
 
-        Initialize(numTracersPer);
+        // Create particle system
+        particleSystem = gameObject.AddComponent<ParticleSystem>();
+        particleSystem.startSpeed = 0;
+        var em = particleSystem.emission;
+        em.enabled = false;
+
+        // Fetch all particles on the scene
+        tracers = new List<ParticleSystem.Particle>();
+
+        GameObject[] tracersGOs = GameObject.FindGameObjectsWithTag("Tracers");
+        for(int i = 0; i < tracersGOs.Length; ++i)
+        {
+            tracers.AddRange(tracersGOs[i].GetComponent<Tracers>().tracers);
+        }
+
+        Initialize();
+
+
     }    
 
     /*
@@ -60,10 +80,10 @@ public class FluidSimulation : MonoBehaviour
         i.e. that their initial positions, vorticities and
         radius have all been set.
     */
-    void Initialize(uint numTracersPerCellCubeRoot)
+    void Initialize()
     {
         //RemoveEmbeddedParticles();
-        mVortonSim.Initialize(numTracersPerCellCubeRoot);
+        mVortonSim.Initialize(tracers); //TO-DO: Here we should pass the list of all tracers
         //RemoveEmbeddedParticles();
     }
 
@@ -89,6 +109,11 @@ public class FluidSimulation : MonoBehaviour
 
         // Apply boundary conditions and calculate impulses to apply to rigid bodies.
         //SolveBoundaryConditions();        
+    }
+
+    void LateUpdate()
+    {       
+        particleSystem.SetParticles(tracers.ToArray(), tracers.Count);
     }
 
     void AssignVorticity(float fMagnitude, uint numVortonsMax, IVorticityDistribution vorticityDistribution)

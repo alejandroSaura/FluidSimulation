@@ -74,7 +74,7 @@ public class VortonSim
         That includes removing any vortons embedded inside
         rigid bodies.
     */
-    public void Initialize(uint numTracersPerCellCubeRoot)
+    public void Initialize(List<ParticleSystem.Particle> tracers)
     {
         if (mUseMultithreads)
         {
@@ -88,16 +88,20 @@ public class VortonSim
 
         //InitializePassiveTracers(numTracersPerCellCubeRoot); // Create particles
 
-        //{
-        //    float domainVolume = mInfluenceTree[0].GetExtent().x * mInfluenceTree[0].GetExtent().y * mInfluenceTree[0].GetExtent().z;
-        //    if (0.0f == mInfluenceTree[0].GetExtent().z)
-        //    {   // Domain is 2D in XY plane.
-        //        domainVolume = mInfluenceTree[0].GetExtent().x * mInfluenceTree[0].GetExtent().y;
-        //    }
-        //    const float totalMass = domainVolume * mFluidDensity;
-        //    const unsigned numTracersPerCell = POW3(numTracersPerCellCubeRoot);
-        //    mMassPerParticle = totalMass / float(mInfluenceTree[0].GetGridCapacity() * numTracersPerCell);
-        //}
+        {
+            float domainVolume = mInfluenceTree[0].GetExtent().x * mInfluenceTree[0].GetExtent().y * mInfluenceTree[0].GetExtent().z;
+            if (0.0f == mInfluenceTree[0].GetExtent().z)
+            {   // Domain is 2D in XY plane.
+                domainVolume = mInfluenceTree[0].GetExtent().x * mInfluenceTree[0].GetExtent().y;
+            }
+            float totalMass = domainVolume * mFluidDensity;
+            //uint numTracersPerCell = (numTracersPerCellCubeRoot * numTracersPerCellCubeRoot * numTracersPerCellCubeRoot);
+            float numTracersPerCell = (
+                tracers.Count / 
+                (float)(mInfluenceTree[0].GetNumCells(0) * mInfluenceTree[0].GetNumCells(1) * mInfluenceTree[0].GetNumCells(2))
+                );
+            mMassPerParticle = totalMass / (float)(mInfluenceTree[0].GetGridCapacity() * numTracersPerCell);
+        }
     }
 
     /*
