@@ -143,18 +143,11 @@ public class VortonSim
 
         MakeBaseVortonGrid();
 
-        //InitializePassiveTracers(numTracersPerCellCubeRoot);
-
-        //{
-        //    float domainVolume = mInfluenceTree[0].GetExtent().x * mInfluenceTree[0].GetExtent().y * mInfluenceTree[0].GetExtent().z;
-        //    if (0.0f == mInfluenceTree[0].GetExtent().z)
-        //    {   // Domain is 2D in XY plane.
-        //        domainVolume = mInfluenceTree[0].GetExtent().x * mInfluenceTree[0].GetExtent().y;
-        //    }
-        //    float totalMass = domainVolume * mFluidDensity;
-        //    uint numTracersPerCell = (numTracersPerCellCubeRoot * numTracersPerCellCubeRoot * numTracersPerCellCubeRoot);
-        //    mMassPerParticle = totalMass / float(mInfluenceTree[0].GetGridCapacity() * numTracersPerCell);
-        //}
+        int numLayers = mInfluenceTree.GetDepth();
+        for (uint uParentLayer = 1; uParentLayer < numLayers; ++uParentLayer)
+        {   // For each layer in the influence tree...
+            AggregateClusters(uParentLayer);
+        }
     }
 
 
@@ -236,6 +229,65 @@ public class VortonSim
             }
         }
 
+    }
+
+
+    void AggregateClusters(uint uParentLayer)
+    {
+        // number of cells in each grid cluster
+        uint[] pClusterDims = mInfluenceTree.GetDecimations((int)uParentLayer);
+
+        uint[] numCells = { mInfluenceTree[uParentLayer].GetNumCells(0), mInfluenceTree[uParentLayer].GetNumCells(1), mInfluenceTree[uParentLayer].GetNumCells(2) };
+        uint numXY = mInfluenceTree[uParentLayer].GetNumPoints(0) * mInfluenceTree[uParentLayer].GetNumPoints(1);
+        // (Since this loop writes to each parent cell, it should readily parallelize without contention.)
+        uint[] idxParent = new uint[3];
+        for (idxParent[2] = 0; idxParent[2] < numCells[2]; ++idxParent[2])
+        {
+            uint offsetZ = idxParent[2] * numXY;
+            for (idxParent[1] = 0; idxParent[1] < numCells[1]; ++idxParent[1])
+            {
+                uint offsetYZ = idxParent[1] * mInfluenceTree[uParentLayer].GetNumPoints(0) + offsetZ;
+                for (idxParent[0] = 0; idxParent[0] < numCells[0]; ++idxParent[0])
+                {   // For each cell in the parent layer...
+                    uint offsetXYZ = idxParent[0] + offsetYZ;
+
+                    UniformGrid<Vorton> rChildLayer = mInfluenceTree[uParentLayer - 1];
+                    VortonClusterAux vortAux = new VortonClusterAux();
+                    uint[] clusterMinIndices = mInfluenceTree.GetChildClusterMinCornerIndex(pClusterDims, idxParent); ;
+                    
+                    uint[] increment = { 0, 0, 0 };
+                    uint numXchild = rChildLayer.GetNumPoints(0);
+                    uint numXYchild = numXchild * rChildLayer.GetNumPoints(1);
+                    // For each cell of child layer in this grid cluster...
+                    for (increment[2] = 0; increment[2] < pClusterDims[2]; ++increment[2])
+                    {
+                        uint childOffsetZ = (clusterMinIndices[2] + increment[2]) * numXYchild;
+                        for (increment[1] = 0; increment[1] < pClusterDims[1]; ++increment[1])
+                        {
+                            uint childOffsetYZ = (clusterMinIndices[1] + increment[1]) * numXchild + childOffsetZ;
+                            for (increment[0] = 0; increment[0] < pClusterDims[0]; ++increment[0])
+                            {
+                                uint childOffsetXYZ = (clusterMinIndices[0] + increment[0]) + childOffsetYZ;
+                                Vorton rVortonChild = rChildLayer[childOffsetXYZ];
+                                float vortMag = rVortonChild.vorticity.magnitude;
+
+                                // Aggregate vorton cluster from child layer into parent layer:
+                                mInfluenceTree[uParentLayer][offsetXYZ].position += rVortonChild.position * vortMag;
+                                mInfluenceTree[uParentLayer][offsetXYZ].vorticity += rVortonChild.vorticity;
+                                vortAux.mVortNormSum += vortMag;
+                                if (rVortonChild.radius != 0.0f)
+                                {
+                                    mInfluenceTree[uParentLayer][offsetXYZ].radius = rVortonChild.radius;
+                                }
+                            }
+                        }
+                    }
+                    // Normalize weighted position sum to obtain center-of-vorticity.
+                    // (See analogous code in MakeBaseVortonGrid.)
+                    mInfluenceTree[uParentLayer][offsetXYZ].position /= vortAux.mVortNormSum;
+                }
+            }
+        }
     }
 
     /*

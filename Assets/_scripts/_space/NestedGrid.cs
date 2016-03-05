@@ -100,9 +100,9 @@ public class NestedGrid<ItemT> where ItemT : IgridItem
         which corresponds to minimum corner cell of the grid cluster represented
         by the cell in the parent layer with the specified index.        
     */
-    public int[] GetChildClusterMinCornerIndex(int[] decimations, int[] indicesOfParentCell)
+    public uint[] GetChildClusterMinCornerIndex(uint[] decimations, uint[] indicesOfParentCell)
     {
-        int[] clusterMinIndices = new int[3];
+        uint[] clusterMinIndices = new uint[3];
         clusterMinIndices[0] = indicesOfParentCell[0] * decimations[0];
         clusterMinIndices[1] = indicesOfParentCell[1] * decimations[1];
         clusterMinIndices[2] = indicesOfParentCell[2] * decimations[2];
