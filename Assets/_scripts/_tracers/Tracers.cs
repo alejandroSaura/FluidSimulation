@@ -5,6 +5,8 @@ using System.Collections.Generic;
 public class Tracers : MonoBehaviour {
 
     public uint numberOfTracers = 512;
+    public bool drawGrid = false;
+
     UniformGridGeometry grid;
 
     public List<ParticleSystem.Particle> tracers;
@@ -43,18 +45,15 @@ public class Tracers : MonoBehaviour {
         }
 
     }
-
-    void LateUpdate()
-    {
-        // TO-DO: This will be done in the fluid simulation
-        //particleSystem.SetParticles(tracers.ToArray(), tracers.Count);
-    }
+    
 
     void OnDrawGizmos()
     {
-        DebugExtension.DebugLocalCube(transform, new Vector3(1, 1, 1));
-
-        if(grid != null)
+        if (grid == null)
+        {
+            DebugExtension.DebugLocalCube(transform, new Vector3(1, 1, 1));
+        }
+        else if(drawGrid)
         {
             Vector3 cellExtent = grid.GetCellExtent();
             Vector3 gridExtent = grid.GetExtent();

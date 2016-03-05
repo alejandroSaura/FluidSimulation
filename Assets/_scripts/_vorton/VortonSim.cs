@@ -106,6 +106,14 @@ public class VortonSim
 
     }
 
+    public void Update(float timeStep)
+    {
+        //Debug.Log("Updating Vorton Simulation");
+        CreateInfluenceTree();
+
+        //ComputeVelocityGrid();
+    }
+
     /*
         Create nested grid vorticity influence tree.
 
@@ -348,11 +356,7 @@ public class VortonSim
         mVortons.Add(vorton);
     }
 
-    public void Update(float timeStep)
-    {
-        //Debug.Log("Updating Vorton Simulation");
-        CreateInfluenceTree();
-    }
+    
 
     public void Clear()
     {
