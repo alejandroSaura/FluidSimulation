@@ -140,11 +140,20 @@ public class VortonSim
         FindBoundingBox(); // Find axis-aligned bounding box that encloses all vortons and tracers.
 
         // Create skeletal nested grid for influence tree.
+        float numElements;
+
         int numVortons = mVortons.Count;
+        numElements = numVortons; // Default approach. Loss of precission when adding tracers... but fast.
+
+        //float boundingBoxVolume = (mMaxCorner - mMinCorner).x * (mMaxCorner - mMinCorner).y * (mMaxCorner - mMinCorner).z;
+        //float vortonVolume = 4*(1.0f/3.0f)*Mathf.PI*
+        //    (mVortons[0].radius * mVortons[0].radius * mVortons[0].radius);
+        // Accurate approach that maintains precission. Very Slow.
+        //numElements = boundingBoxVolume / vortonVolume;         
 
         {
             UniformGrid<Vorton> ugSkeleton = new UniformGrid<Vorton>();   ///< Uniform grid with the same size & shape as the one holding aggregated information about mVortons.
-            ugSkeleton.DefineShape((uint)numVortons, mMinCorner, mMaxCorner, true);
+            ugSkeleton.DefineShape((uint)numElements, mMinCorner, mMaxCorner, true);
             mInfluenceTree.Initialize(ugSkeleton); // Create skeleton of influence tree.
         }
 
@@ -342,6 +351,7 @@ public class VortonSim
     public void Update(float timeStep)
     {
         //Debug.Log("Updating Vorton Simulation");
+        CreateInfluenceTree();
     }
 
     public void Clear()
@@ -367,7 +377,7 @@ public class VortonSim
         int numTracers = mTracers.Count;
         for (int iTracer = 0; iTracer < numTracers; ++iTracer)
         {   // For each passive tracer particle in this simulation...
-
+            
             // Find corners of axis-aligned bounding box.
             UpdateBoundingBox(ref mMinCorner, ref mMaxCorner, mTracers[iTracer].position);
         }
