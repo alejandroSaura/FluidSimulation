@@ -44,7 +44,7 @@ public class VortonSim
     Vector3 mAverageVorticity;   ///< Hack, average vorticity used to compute a kind of viscous vortex diffusion.
     
     float mMassPerParticle;   ///< Mass of each fluid particle (vorton or tracer).
-    List<Particle> mTracers;   ///< Passive tracer particles
+    List<ParticleSystem.Particle> mTracers;   ///< Passive tracer particles
 
 
     // vorton simulation constructor
@@ -64,7 +64,7 @@ public class VortonSim
         mVortons = new List<Vorton>();
         mInfluenceTree = new NestedGrid<Vorton>();
         mVelGrid = new UniformGrid<Vector>();
-        mTracers = new List<Particle>();
+        mTracers = new List<ParticleSystem.Particle>();
     }
 
     /*
@@ -84,10 +84,10 @@ public class VortonSim
 
         ConservedQuantities();
         ComputeAverageVorticity();
-        CreateInfluenceTree(); // This is a marginally superfluous call.  We only need the grid geometry to seed passive tracer particles.
 
-        //InitializePassiveTracers(numTracersPerCellCubeRoot); // Create particles
-
+        mTracers = tracers;
+        CreateInfluenceTree(); // Create influence tree taking into consideration the tracers and the Vortons
+        // Calculate particles physic properties
         {
             float domainVolume = mInfluenceTree[0].GetExtent().x * mInfluenceTree[0].GetExtent().y * mInfluenceTree[0].GetExtent().z;
             if (0.0f == mInfluenceTree[0].GetExtent().z)
@@ -102,6 +102,8 @@ public class VortonSim
                 );
             mMassPerParticle = totalMass / (float)(mInfluenceTree[0].GetGridCapacity() * numTracersPerCell);
         }
+
+
     }
 
     /*
@@ -135,10 +137,11 @@ public class VortonSim
     */
     void CreateInfluenceTree()
     {
-        FindBoundingBox(); // Find axis-aligned bounding box that encloses all vortons.
+        FindBoundingBox(); // Find axis-aligned bounding box that encloses all vortons and tracers.
 
         // Create skeletal nested grid for influence tree.
         int numVortons = mVortons.Count;
+
         {
             UniformGrid<Vorton> ugSkeleton = new UniformGrid<Vorton>();   ///< Uniform grid with the same size & shape as the one holding aggregated information about mVortons.
             ugSkeleton.DefineShape((uint)numVortons, mMinCorner, mMaxCorner, true);
@@ -338,7 +341,7 @@ public class VortonSim
 
     public void Update(float timeStep)
     {
-        Debug.Log("Updating Vorton Simulation");
+        //Debug.Log("Updating Vorton Simulation");
     }
 
     public void Clear()
@@ -361,13 +364,13 @@ public class VortonSim
             UpdateBoundingBox(ref mMinCorner, ref mMaxCorner, mVortons[iVorton].position);
         }
 
-        //const size_t numTracers = mTracers.Size();
-        //for (unsigned iTracer = 0; iTracer < numTracers; ++iTracer)
-        //{   // For each passive tracer particle in this simulation...
-        //    const Particle &rTracer = mTracers[iTracer];
-        //    // Find corners of axis-aligned bounding box.
-        //    UpdateBoundingBox(mMinCorner, mMaxCorner, rTracer.mPosition);
-        //}
+        int numTracers = mTracers.Count;
+        for (int iTracer = 0; iTracer < numTracers; ++iTracer)
+        {   // For each passive tracer particle in this simulation...
+
+            // Find corners of axis-aligned bounding box.
+            UpdateBoundingBox(ref mMinCorner, ref mMaxCorner, mTracers[iTracer].position);
+        }
 
         // Slightly enlarge bounding box to allow for round-off errors.
         Vector3 extent = (mMaxCorner - mMinCorner) ;
