@@ -23,11 +23,9 @@ public class UniformGrid<ItemT> : UniformGridGeometry where ItemT : IgridItem
     /*
         Copy shape from given uniform grid
     */
-    public UniformGrid(UniformGridGeometry gridToCopy) : base(gridToCopy)
-    {
-
-    }
-
+    public UniformGrid(UniformGridGeometry gridToCopy) : base(gridToCopy) { }
+    
+    public Vector3 GetCellSpacing() { return GetCellExtent(); }
 
     // Operator [] overload
     public ItemT this[uint offset]

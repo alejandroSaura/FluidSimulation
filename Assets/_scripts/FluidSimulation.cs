@@ -5,12 +5,18 @@ using System.Collections.Generic;
 public class FluidSimulation : MonoBehaviour
 {
     ParticleSystem particleSystem;
-    List<ParticleSystem.Particle> tracers;
+
+    /* 
+        Enable editor debug mode to recalculate vortons and boundaries
+        from vortices and tracers every frame. Carefull: Very slow.
+    */
+    public bool editorDebugMode = false;
 
     public bool debugVortons = true;
     public bool debugInfluenceTree = true;
+    public bool debugVelocityGrid = true;
 
-    public bool useMultiThreads = true;
+    public bool useMultiThreads = false;
 
     public float viscosity = 0.05f;
     public float density = 1.0f;
@@ -33,41 +39,9 @@ public class FluidSimulation : MonoBehaviour
 
 	void Start ()
     {
-        Random.seed = (int)(Time.realtimeSinceStartup*1000);
-
-        numVortonsMax = numCellsPerDim * numCellsPerDim * numCellsPerDim;
-
-        mVortonSim = new VortonSim(viscosity, density, useMultiThreads);
-        //mVortonSim.Clear();
-
-        //IVorticityDistribution vorticityDistribution = gameObject.GetComponentInChildren<IVorticityDistribution>();
-        //AssignVorticity(2.0f * magnitude, (uint)numVortonsMax, vorticityDistribution);
-
-        // distribute numVortonsMax between all vortices of the simulation.
-        GameObject[] vortices = GameObject.FindGameObjectsWithTag("Vortex");
-        for(int i = 0; i < vortices.Length; ++i)
-        {
-            AssignVorticity(2.0f * magnitude, (uint)(numVortonsMax/vortices.Length), vortices[i].GetComponent<IVorticityDistribution>());
-        }
-
-        // Create particle system
-        particleSystem = gameObject.AddComponent<ParticleSystem>();
-        particleSystem.startSpeed = 0;
-        var em = particleSystem.emission;
-        em.enabled = false;
-
-        // Fetch all particles on the scene
-        tracers = new List<ParticleSystem.Particle>();
-
-        GameObject[] tracersGOs = GameObject.FindGameObjectsWithTag("Tracers");
-        for(int i = 0; i < tracersGOs.Length; ++i)
-        {
-            tracers.AddRange(tracersGOs[i].GetComponent<Tracers>().tracers);
-        }
+        Random.seed = (int)(Time.realtimeSinceStartup*1000);       
 
         Initialize();
-
-
     }    
 
     /*
@@ -82,8 +56,39 @@ public class FluidSimulation : MonoBehaviour
     */
     void Initialize()
     {
+        numVortonsMax = numCellsPerDim * numCellsPerDim * numCellsPerDim;
+
+        mVortonSim = new VortonSim(viscosity, density, useMultiThreads);
+        //mVortonSim.Clear();
+
+        //IVorticityDistribution vorticityDistribution = gameObject.GetComponentInChildren<IVorticityDistribution>();
+        //AssignVorticity(2.0f * magnitude, (uint)numVortonsMax, vorticityDistribution);
+
+        // distribute numVortonsMax between all vortices of the simulation.
+        GameObject[] vortices = GameObject.FindGameObjectsWithTag("Vortex");
+        for (int i = 0; i < vortices.Length; ++i)
+        {
+            AssignVorticity(2.0f * magnitude, (uint)(numVortonsMax / vortices.Length), vortices[i].GetComponent<IVorticityDistribution>());
+        }
+
+        // Create particle system
+        if(gameObject.GetComponent<ParticleSystem>() == null)
+            particleSystem = gameObject.AddComponent<ParticleSystem>();
+        particleSystem.startSpeed = 0;
+        var em = particleSystem.emission;
+        em.enabled = false;
+
+        // Fetch all particles on the scene
+        //tracers = new List<ParticleSystem.Particle>();
+
+        GameObject[] tracersGOs = GameObject.FindGameObjectsWithTag("Tracers");
+        for (int i = 0; i < tracersGOs.Length; ++i)
+        {
+            mVortonSim.mTracers.AddRange(tracersGOs[i].GetComponent<Tracers>().tracers);
+        }
+
         //RemoveEmbeddedParticles();
-        mVortonSim.Initialize(tracers); //TO-DO: Here we should pass the list of all tracers
+        mVortonSim.Initialize(); //TO-DO: Here we should pass the list of all tracers
         //RemoveEmbeddedParticles();
     }
 
@@ -104,8 +109,10 @@ public class FluidSimulation : MonoBehaviour
     */
     void Update()
     {
+        if(editorDebugMode) Initialize();
+
         // Update fluid, temporarily ignoring rigid bodies and boundary conditions.
-        mVortonSim.Update(Time.deltaTime);
+        mVortonSim.Update(Time.deltaTime);       
 
         // Apply boundary conditions and calculate impulses to apply to rigid bodies.
         //SolveBoundaryConditions();        
@@ -113,7 +120,7 @@ public class FluidSimulation : MonoBehaviour
 
     void LateUpdate()
     {       
-        particleSystem.SetParticles(tracers.ToArray(), tracers.Count);
+        particleSystem.SetParticles(mVortonSim.mTracers.ToArray(), mVortonSim.mTracers.Count);
     }
 
     void AssignVorticity(float fMagnitude, uint numVortonsMax, IVorticityDistribution vorticityDistribution)
@@ -184,8 +191,9 @@ public class FluidSimulation : MonoBehaviour
     {
         if (mVortonSim != null)
         {
-            if(debugInfluenceTree) mVortonSim.DebugDrawInfluenceGrid();
-            if(debugVortons) mVortonSim.DebugDrawVortons();
+            if (debugInfluenceTree) mVortonSim.DebugDrawInfluenceGrid();
+            if (debugVortons) mVortonSim.DebugDrawVortons();
+            if (debugVelocityGrid) mVortonSim.DebugDrawVelocityGrid();
         }        
     }
 

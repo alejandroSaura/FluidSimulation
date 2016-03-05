@@ -36,7 +36,7 @@ public class Tracers : MonoBehaviour {
                     ParticleSystem.Particle newTracer = new ParticleSystem.Particle();
                     uint[] indices = { i, j, k };
                     newTracer.position = (grid.PositionFromIndices(indices) + relativeCenterOfGrid) ;
-                    newTracer.startColor = new Color32(255, 255, 255, 255);
+                    newTracer.startColor = new Color32(255, 255, 255, 50);
                     newTracer.startSize = 0.2f;
                     newTracer.lifetime = 9999;
                     tracers.Add(newTracer);

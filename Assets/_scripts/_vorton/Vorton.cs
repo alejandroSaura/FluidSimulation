@@ -66,8 +66,10 @@ public class Vorton : IgridItem
     to a velocity field.
 
     */
-    public void AccumulateVelocity(ref Vector3 vVelocity , Vector3 vPosQuery )
+    public void AccumulateVelocity(ref Vector vVelocity , Vector3 vPosQuery )
     {
+        if (mRadius == 0) return;
+
         Vector3 vNeighborToSelf = vPosQuery - mPosition;
         float radius2 = mRadius * mRadius;
         float dist2 = vNeighborToSelf.sqrMagnitude + global.GlobalVar.sAvoidSingularity;
@@ -85,7 +87,7 @@ public class Vorton : IgridItem
         // this is the implementation of the formula:
         // "v = (1/4phi) * (vorticity x distance)/distance^3" - velocity from vorticity
         // with a improvement to mitigate the singularity inside the vorton
-        vVelocity += Vector3.Cross(global.GlobalVar.OneOverFourPi * (8.0f * radius2 * mRadius) * mVorticity, vNeighborToSelf * distLaw);
+        vVelocity.v += Vector3.Cross(global.GlobalVar.OneOverFourPi * (8.0f * radius2 * mRadius) * mVorticity, vNeighborToSelf * distLaw);
     }
 
     /*

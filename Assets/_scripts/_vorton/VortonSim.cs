@@ -29,8 +29,8 @@ public class VortonSim
         set { mFluidDensity = value; }
     }
     
-
-    List<Vorton> mVortons;   ///< Dynamic array of tiny vortex elements
+    //TO-DO: make it private
+    public List<Vorton> mVortons;   ///< Dynamic array of tiny vortex elements
     public List<Vorton> GetVortons() { return mVortons; }
 
     NestedGrid<Vorton> mInfluenceTree;   ///< Influence tree
@@ -44,7 +44,7 @@ public class VortonSim
     Vector3 mAverageVorticity;   ///< Hack, average vorticity used to compute a kind of viscous vortex diffusion.
     
     float mMassPerParticle;   ///< Mass of each fluid particle (vorton or tracer).
-    List<ParticleSystem.Particle> mTracers;   ///< Passive tracer particles
+    public List<ParticleSystem.Particle> mTracers;   ///< Passive tracer particles
 
 
     // vorton simulation constructor
@@ -65,6 +65,7 @@ public class VortonSim
         mInfluenceTree = new NestedGrid<Vorton>();
         mVelGrid = new UniformGrid<Vector>();
         mTracers = new List<ParticleSystem.Particle>();
+        
     }
 
     /*
@@ -74,7 +75,7 @@ public class VortonSim
         That includes removing any vortons embedded inside
         rigid bodies.
     */
-    public void Initialize(List<ParticleSystem.Particle> tracers)
+    public void Initialize()
     {
         if (mUseMultithreads)
         {
@@ -85,7 +86,7 @@ public class VortonSim
         ConservedQuantities();
         ComputeAverageVorticity();
 
-        mTracers = tracers;
+        
         CreateInfluenceTree(); // Create influence tree taking into consideration the tracers and the Vortons
         // Calculate particles physic properties
         {
@@ -97,7 +98,7 @@ public class VortonSim
             float totalMass = domainVolume * mFluidDensity;
             //uint numTracersPerCell = (numTracersPerCellCubeRoot * numTracersPerCellCubeRoot * numTracersPerCellCubeRoot);
             float numTracersPerCell = (
-                tracers.Count / 
+                mTracers.Count / 
                 (float)(mInfluenceTree[0].GetNumCells(0) * mInfluenceTree[0].GetNumCells(1) * mInfluenceTree[0].GetNumCells(2))
                 );
             mMassPerParticle = totalMass / (float)(mInfluenceTree[0].GetGridCapacity() * numTracersPerCell);
@@ -111,7 +112,15 @@ public class VortonSim
         //Debug.Log("Updating Vorton Simulation");
         CreateInfluenceTree();
 
-        //ComputeVelocityGrid();
+        ComputeVelocityGrid();
+
+        //StretchAndTiltVortons(timeStep, uFrame);
+
+        //DiffuseVorticityPSE(timeStep, uFrame);
+
+        //AdvectVortons(timeStep);
+
+        //AdvectTracers(timeStep, uFrame);
     }
 
     /*
@@ -411,6 +420,172 @@ public class VortonSim
     }
 
     /*
+        Compute velocity due to vortons, for every point in a uniform grid
+        This routine assumes CreateInfluenceTree has already executed.
+    */
+    void ComputeVelocityGrid()
+    {
+        mVelGrid.Clear();                                  // Clear any stale velocity information
+        mVelGrid.CopyShape(mInfluenceTree[0]);           // Use same shape as base vorticity grid. (Note: could differ if you want.)
+        mVelGrid.Init();                                   // Reserve memory for velocity grid.
+
+        uint numZ = mVelGrid.GetNumPoints(2);
+
+        if (mUseMultithreads)
+        {
+            // Estimate grain size based on size of problem and number of processors.
+            //const unsigned grainSize = MAX2(1, numZ / gNumberOfProcessors);
+            // Compute velocity grid using multiple threads.
+            //parallel_for(tbb::blocked_range<size_t>(0, numZ, grainSize), VortonSim_ComputeVelocityGrid_TBB(this));
+        }
+        else
+        {
+            ComputeVelocityGridSlice(0, numZ);
+        }
+        
+    }
+
+
+    /*
+        Compute velocity due to vortons, for a subset of points in a uniform grid
+        izStart - starting value for z index
+        izEnd - ending value for z index   
+
+        This routine assumes CreateInfluenceTree has already executed,
+        and that the velocity grid has been allocated.
+    */
+    void ComputeVelocityGridSlice(uint izStart, uint izEnd)
+    {
+        int numLayers = mInfluenceTree.GetDepth();
+
+        Vector3 vMinCorner = mVelGrid.GetMinCorner();
+        float nudge = 1.0f - 2.0f * global.GlobalVar.FLT_EPSILON;
+        Vector3 vSpacing = mVelGrid.GetCellSpacing() * nudge;
+        uint[] dims =   { mVelGrid.GetNumPoints( 0 )
+                        , mVelGrid.GetNumPoints( 1 )
+                        , mVelGrid.GetNumPoints( 2 ) };
+        uint numXY = dims[0] * dims[1];
+        uint[] idx = new uint[3];
+
+        for (idx[2] = izStart; idx[2] < izEnd; ++idx[2])
+        {   // For subset of z index values...
+            Vector3 vPosition;
+            // Compute the z-coordinate of the world-space position of this gridpoint.
+            vPosition.z = vMinCorner.z + (float)(idx[2]) * vSpacing.z;
+            // Precompute the z contribution to the offset into the velocity grid.
+            uint offsetZ = idx[2] * numXY;
+            for (idx[1] = 0; idx[1] < dims[1]; ++idx[1])
+            {   // For every gridpoint along the y-axis...
+                // Compute the y-coordinate of the world-space position of this gridpoint.
+                vPosition.y = vMinCorner.y + (float)(idx[1]) * vSpacing.y;
+                // Precompute the y contribution to the offset into the velocity grid.
+                uint offsetYZ = idx[1] * dims[0] + offsetZ;
+                for (idx[0] = 0; idx[0] < dims[0]; ++idx[0])
+                {   // For every gridpoint along the x-axis...
+                    // Compute the x-coordinate of the world-space position of this gridpoint.
+                    vPosition.x = vMinCorner.x + (float)(idx[0]) * vSpacing.x;
+                    // Compute the offset into the velocity grid.
+                    uint offsetXYZ = idx[0] + offsetYZ;
+
+                    // Compute the fluid flow velocity at this gridpoint, due to all vortons.
+                    uint[] zeros = { 0 , 0 , 0 } ; // Starter indices for recursive algorithm
+                    mVelGrid[ offsetXYZ ] = ComputeVelocity( vPosition , zeros , numLayers - 1  ) ;
+                }
+            }
+        }
+    }
+
+
+    /*
+        Compute velocity at a given point in space, due to influence of vortons
+
+        vPosition - point in space whose velocity to evaluate
+        indices - indices of cell to visit in the given layer
+        iLayer - which layer to process
+
+        returns velocity at vPosition, due to influence of vortons
+        This is a recursive algorithm with time complexity O(log(N)). 
+        The outermost caller should pass in mInfluenceTree.GetDepth().
+
+    */
+    Vector ComputeVelocity(Vector3 vPosition , uint[] indices, int iLayer )
+    {
+        Vector velocityAccumulator = new Vector();
+
+        UniformGrid<Vorton> rChildLayer = mInfluenceTree[(uint)iLayer - 1];
+
+        uint[] pClusterDims = mInfluenceTree.GetDecimations(iLayer);
+        uint[] clusterMinIndices =  mInfluenceTree.GetChildClusterMinCornerIndex(pClusterDims, indices);
+
+        Vector3 vGridMinCorner = rChildLayer.GetMinCorner();
+        Vector3 vSpacing = rChildLayer.GetCellSpacing();
+        uint[] increment = new uint[3];
+        uint numXchild = rChildLayer.GetNumPoints(0);
+        uint numXYchild = numXchild * rChildLayer.GetNumPoints(1);
+
+        // The larger this is, the more accurate (and slower) the evaluation.
+        // Reasonable values lie in [0.00001,4.0].
+        // Setting this to 0 leads to very bad errors, but values greater than (tiny) lead to drastic improvements.
+        // Changes in margin have a quantized effect since they effectively indicate how many additional
+        // cluster subdivisions to visit.
+        float marginFactor = 0.0001f; // 0.4f ; // ship with this number: 0.0001f ; test with 0.4
+                                                   // When domain is 2D in XY plane, min.z==max.z so vPos.z test below would fail unless margin.z!=0.
+        Vector3 margin = marginFactor * vSpacing + (0.0f == vSpacing.z ? new Vector3(0, 0, float.Epsilon) : Vector3.zero);
+
+        // For each cell of child layer in this grid cluster...
+        for (increment[2] = 0; increment[2] < pClusterDims[2]; ++increment[2])
+        {
+            uint[] idxChild = new uint[3];
+            idxChild[2] = clusterMinIndices[2] + increment[2];
+            Vector3 vCellMinCorner, vCellMaxCorner;
+            vCellMinCorner.z = vGridMinCorner.z + (float)(idxChild[2]) * vSpacing.z;
+            vCellMaxCorner.z = vGridMinCorner.z + (float)(idxChild[2] + 1) * vSpacing.z;
+            uint offsetZ = idxChild[2] * numXYchild;
+            for (increment[1] = 0; increment[1] < pClusterDims[1]; ++increment[1])
+            {
+                idxChild[1] = clusterMinIndices[1] + increment[1];
+                vCellMinCorner.y = vGridMinCorner.y + (float)(idxChild[1]) * vSpacing.y;
+                vCellMaxCorner.y = vGridMinCorner.y + (float)(idxChild[1] + 1) * vSpacing.y;
+                uint offsetYZ = idxChild[1] * numXchild + offsetZ;
+                for (increment[0] = 0; increment[0] < pClusterDims[0]; ++increment[0])
+                {
+                    idxChild[0] = clusterMinIndices[0] + increment[0];
+                    vCellMinCorner.x = vGridMinCorner.x + (float)(idxChild[0]) * vSpacing.x;
+                    vCellMaxCorner.x = vGridMinCorner.x + (float)(idxChild[0] + 1) * vSpacing.x;
+                    if (
+                            (iLayer > 1)
+                        && (vPosition.x >= vCellMinCorner.x - margin.x)
+                        && (vPosition.y >= vCellMinCorner.y - margin.y)
+                        && (vPosition.z >= vCellMinCorner.z - margin.z)
+                        && (vPosition.x < vCellMaxCorner.x + margin.x)
+                        && (vPosition.y < vCellMaxCorner.y + margin.y)
+                        && (vPosition.z < vCellMaxCorner.z + margin.z)
+                      )
+                    {   // Test position is inside childCell and currentLayer > 0...
+                        // Recurse child layer.
+                        Vector upVelocicy = ComputeVelocity(vPosition, idxChild, iLayer - 1);
+                        velocityAccumulator += upVelocicy;
+                    }
+                    else
+                    {   // Test position is outside childCell, or reached leaf node.
+                        //    Compute velocity induced by cell at corner point x.
+                        //    Accumulate influence, storing in velocityAccumulator.
+                        uint offsetXYZ = idxChild[0] + offsetYZ;
+                        
+                        // Add velocity due to this vorton to the accumulator
+                        rChildLayer[offsetXYZ].AccumulateVelocity(ref velocityAccumulator, vPosition);
+                    }
+                }
+            }
+        }
+
+
+        return velocityAccumulator;
+    }
+
+
+
+    /*
         Kill the tracer at the given index
     */
     void KillTracer(int iTracer)
@@ -426,6 +601,34 @@ public class VortonSim
             Gizmos.DrawSphere(mVortons[i].position, mVortons[i].radius);
             Gizmos.color = Color.red;
             Gizmos.DrawLine(mVortons[i].position, mVortons[i].position + mVortons[i].vorticity.normalized * mVortons[i].radius);
+        }
+    }
+
+    public void DebugDrawVelocityGrid()
+    {
+        if (mVelGrid != null)
+        {
+            Vector3 cellExtent = mVelGrid.GetCellExtent();
+            Vector3 gridExtent = mVelGrid.GetExtent();
+            Vector3 numCells = new Vector3(mVelGrid.GetNumCells(0), mVelGrid.GetNumCells(1), mVelGrid.GetNumCells(2));
+            Vector3 gridOrigin = mVelGrid.GetMinCorner();
+
+            for (int i = 0; i < numCells.x; ++i)
+            {
+                for (int j = 0; j < numCells.y; ++j)
+                {
+                    for (int k = 0; k < numCells.z; ++k)
+                    {
+                        uint[] indices = { (uint)i, (uint)j, (uint)k };
+                        uint offset = mVelGrid.OffsetFromIndices(indices);
+                        Vector3 center = mVelGrid.PositionFromIndices(indices) + cellExtent/2;
+                        if (mVelGrid[offset].v.magnitude == 0) break;
+
+                        Color color = new Vector4(0.8f, 0.8f, 1, 1);
+                        DebugExtension.DrawArrow(center, mVelGrid[offset].v/8, color);
+                    }
+                }
+            }   
         }
     }
 

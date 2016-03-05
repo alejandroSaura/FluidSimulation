@@ -56,7 +56,7 @@ public class UniformGridGeometry
     /* 
         Copy shape information from another UniformGrid into this one
     */
-    void CopyShape(UniformGridGeometry src)
+    public void CopyShape(UniformGridGeometry src)
     {
         Decimate(src, 1);
     }

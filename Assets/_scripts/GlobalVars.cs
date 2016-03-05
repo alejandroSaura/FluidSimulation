@@ -12,19 +12,18 @@ namespace global
         public const float FourPi = 4.0f * 3.1415926535897932384626433832795f;
         public const float OneOverFourPi = 1.0f / FourPi;
         public const float Nudge = 1.0f + FLT_EPSILON;
-        public static float sAvoidSingularity = Mathf.Pow(float.MinValue, 1.0f / 3.0f);
+        public static float sAvoidSingularity = Mathf.Pow(float.Epsilon, 1.0f / 3.0f);
         public static float sTiny = Mathf.Exp(0.5f * (Mathf.Log(FLT_EPSILON) + Mathf.Log(float.Epsilon)));
 
-        public static float finvsqrtf(float val)
+        public static float finvsqrtf(float x)
         {
-            long i = (long)val;             // Exploit IEEE 754 inner workings.
-            i = 0x5f3759df - (i >> 1);          // From Taylor's theorem and IEEE 754 format.
-            float y = (float)i;              // Estimate of 1/sqrt(val) close enough for convergence using Newton's method.
-            float f = 1.5f;        // Derived from Newton's method.
-            float x = val * 0.5f;  // Derived from Newton's method.
-            y = y * (f - (x * y * y));        // Newton's method for 1/sqrt(val)
-            y = y * (f - (x * y * y));        // Another iteration of Newton's method
-            return y;
+            float xhalf = 0.5f * x;
+            int i = BitConverter.ToInt32(BitConverter.GetBytes(x), 0);
+            i = 0x5f3759df - (i >> 1);
+            x = BitConverter.ToSingle(BitConverter.GetBytes(i), 0);
+            x = x * (1.5f - xhalf * x * x);
+            x = x * (1.5f - xhalf * x * x);
+            return x;
         }
     }
     
