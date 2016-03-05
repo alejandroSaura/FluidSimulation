@@ -9,16 +9,19 @@ public class Vorton : IgridItem
     public Vector3 position
     {
         get { return mPosition; }
+        set { mPosition = value; }
     }
     Vector3 mVorticity;   ///< Vorticity of vortex particle
     public Vector3 vorticity
     {
         get { return mVorticity; }
+        set { mVorticity = value; }
     }
     float mRadius;  ///< Radius of vortex particle
     public float radius
     {
         get { return mRadius; }
+        set { mRadius = value; }
     }
     Vector3 mVelocity;   ///< Velocity of this vorton -- used to cache value obtained during advection, to optimize collision response.
     

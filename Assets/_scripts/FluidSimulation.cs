@@ -4,6 +4,9 @@ using System.Collections.Generic;
 [RequireComponent(typeof(ParticleSystem))]
 public class FluidSimulation : MonoBehaviour
 {
+    public bool debugVortons = true;
+    public bool debugInfluenceTree = true;
+
     public bool useMultiThreads = true;
 
     public float viscosity = 0.05f;
@@ -154,17 +157,11 @@ public class FluidSimulation : MonoBehaviour
 
     void OnDrawGizmos()
     {
-        
-        if (mVortonSim == null) return;
-        List<Vorton> vortons = mVortonSim.GetVortons();
-        if (vortons == null) return;
-        for(int i = 0; i < vortons.Count; ++i)
+        if (mVortonSim != null)
         {
-            Gizmos.color = new Color(0.8f, 0.8f, 1, 0.5f);
-            Gizmos.DrawSphere(vortons[i].position, vortons[i].radius);
-            Gizmos.color = Color.red;
-            Gizmos.DrawLine(vortons[i].position, vortons[i].position + vortons[i].vorticity.normalized*vortons[i].radius);
-        }
+            if(debugInfluenceTree) mVortonSim.DebugDrawInfluenceGrid();
+            if(debugVortons) mVortonSim.DebugDrawVortons();
+        }        
     }
 
 }

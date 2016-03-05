@@ -46,6 +46,7 @@ public class VortonSim
     float mMassPerParticle;   ///< Mass of each fluid particle (vorton or tracer).
     List<Particle> mTracers;   ///< Passive tracer particles
 
+
     // vorton simulation constructor
     public VortonSim(float viscosity = 0.0f, float density = 1.0f, bool useMultithreads = true)
     {
@@ -81,9 +82,9 @@ public class VortonSim
             int numberOfProcessors = SystemInfo.processorCount;
         }
 
-        //ConservedQuantities(mCirculationInitial, mLinearImpulseInitial);
-        //ComputeAverageVorticity();
-        //CreateInfluenceTree(); // This is a marginally superfluous call.  We only need the grid geometry to seed passive tracer particles.
+        ConservedQuantities();
+        ComputeAverageVorticity();
+        CreateInfluenceTree(); // This is a marginally superfluous call.  We only need the grid geometry to seed passive tracer particles.
 
         //InitializePassiveTracers(numTracersPerCellCubeRoot); // Create particles
 
@@ -97,6 +98,181 @@ public class VortonSim
         //    const unsigned numTracersPerCell = POW3(numTracersPerCellCubeRoot);
         //    mMassPerParticle = totalMass / float(mInfluenceTree[0].GetGridCapacity() * numTracersPerCell);
         //}
+    }
+
+    /*
+        Create nested grid vorticity influence tree.
+
+        Each layer of this tree represents a simplified, aggregated version of
+        all of the information in its "child" layer, where each
+        "child" has higher resolution than its "parent".
+
+        Derivation:
+
+        Using conservation properties, I_0 = I_0' , I_1 = I_1' , I_2 = I_2'
+
+        I_0 : wx d = w1x d1 + w2x d2
+            : wy d = w1y d1 + w2y d2
+            : wz d = w1z d1 + w2z d2
+
+        These 3 are not linearly independent:
+        I_1 : ( y wz - z wy ) d = ( y1 wz1 - z1 wy1 ) d1 + ( y2 wz2 - z2 wy2 ) d2
+            : ( z wx - x wz ) d = ( z1 wx1 - x1 wz1 ) d1 + ( z2 wx2 - x2 wz2 ) d2
+            : ( x wy - y wx ) d = ( x1 wy1 - y1 wx1 ) d1 + ( x2 wy2 - y2 wx2 ) d2
+
+        I_2 : ( x^2 + y^2 + z^2 ) wx d = (x1^2 + y1^2 + z1^2 ) wx1 d1 + ( x2^2 + y2^2 + z2^2 ) wx2 d2
+            : ( x^2 + y^2 + z^2 ) wy d = (x1^2 + y1^2 + z1^2 ) wy1 d1 + ( x2^2 + y2^2 + z2^2 ) wy2 d2
+            : ( x^2 + y^2 + z^2 ) wz d = (x1^2 + y1^2 + z1^2 ) wz1 d1 + ( x2^2 + y2^2 + z2^2 ) wz2 d2
+
+        Can replace I_2 with its magnitude:
+              ( x^2  + y^2  + z^2  ) ( wx^2  + wy^2  + wz^2  )^(1/2) d
+            = ( x1^2 + y1^2 + z1^2 ) ( wx1^2 + w1y^2 + w1z^2 )^(1/2) d1
+            + ( x2^2 + y2^2 + z2^2 ) ( wx2^2 + w2y^2 + w2z^2 )^(1/2) d2
+    */
+    void CreateInfluenceTree()
+    {
+        FindBoundingBox(); // Find axis-aligned bounding box that encloses all vortons.
+
+        // Create skeletal nested grid for influence tree.
+        int numVortons = mVortons.Count;
+        {
+            UniformGrid<Vorton> ugSkeleton = new UniformGrid<Vorton>();   ///< Uniform grid with the same size & shape as the one holding aggregated information about mVortons.
+            ugSkeleton.DefineShape((uint)numVortons, mMinCorner, mMaxCorner, true);
+            mInfluenceTree.Initialize(ugSkeleton); // Create skeleton of influence tree.
+        }
+
+        MakeBaseVortonGrid();
+
+        //InitializePassiveTracers(numTracersPerCellCubeRoot);
+
+        //{
+        //    float domainVolume = mInfluenceTree[0].GetExtent().x * mInfluenceTree[0].GetExtent().y * mInfluenceTree[0].GetExtent().z;
+        //    if (0.0f == mInfluenceTree[0].GetExtent().z)
+        //    {   // Domain is 2D in XY plane.
+        //        domainVolume = mInfluenceTree[0].GetExtent().x * mInfluenceTree[0].GetExtent().y;
+        //    }
+        //    float totalMass = domainVolume * mFluidDensity;
+        //    uint numTracersPerCell = (numTracersPerCellCubeRoot * numTracersPerCellCubeRoot * numTracersPerCellCubeRoot);
+        //    mMassPerParticle = totalMass / float(mInfluenceTree[0].GetGridCapacity() * numTracersPerCell);
+        //}
+    }
+
+
+    /*
+        Create base layer of vorton influence tree.
+
+        This is the leaf layer, where each grid cell corresponds(on average) to
+        a single vorton.Some cells might contain multiple vortons and some zero.
+
+        Each cell effectively has a single "supervorton" which its parent layers
+        in the influence tree will in turn aggregate.
+
+        This implementation of gridifying the base layer is NOT suitable
+        for Eulerian operations like approximating spatial derivatives
+
+        of vorticity or solving a vector Poisson equation, because this
+        routine associates each vortex with a single corner point of the
+        grid cell that contains it.  To create a grid for Eulerian calculations,
+        each vorton would contribute to all 8 corner points of the grid
+        cell that contains it.
+
+        We could rewrite this to suit "Eulerian" operations, in which case
+        we would want to omit "size" and "position" since the grid would
+
+        implicitly represent that information.  That concern goes hand-in-hand
+        with the method used to compute velocity from vorticity.
+
+        Ultimately we need to make sure theoretically conserved quantities behave as expected.
+
+        This method assumes the influence tree skeleton has already been created,
+        and the leaf layer initialized to all "zeros", meaning it contains no vortons.
+    */
+    public void MakeBaseVortonGrid()
+    {
+        int numVortons = mVortons.Count;
+
+        UniformGrid<VortonClusterAux> ugAux = new UniformGrid<VortonClusterAux>(mInfluenceTree[0]) ; // Temporary auxilliary information used during aggregation.
+        ugAux.Init();
+
+        // Compute preliminary vorticity grid.
+        for (int uVorton = 0; uVorton < numVortons; ++uVorton)
+        {   // For each vorton in this simulation...            
+            Vector3 position = mVortons[uVorton].position;
+            uint uOffset = mInfluenceTree[0].OffsetOfPosition(position);
+                        
+            float vortMag = mVortons[uVorton].vorticity.magnitude;
+
+            mInfluenceTree[0][uOffset].position += mVortons[uVorton].position * vortMag; // Compute weighted position -- to be normalized later.
+            mInfluenceTree[0][uOffset].vorticity += mVortons[uVorton].vorticity; // Tally vorticity sum.
+            mInfluenceTree[0][uOffset].radius = mVortons[uVorton].radius; // Assign volume element size.
+            // OBSOLETE. See comments below: UpdateBoundingBox( rVortonAux.mMinCorner , rVortonAux.mMaxCorner , rVorton.mPosition ) ;
+            ugAux[uOffset].mVortNormSum += vortMag; // Accumulate vorticity on the VortonClusterAux
+        }
+
+        // Post-process preliminary grid (VortonClusterAux); normalize center-of-vorticity and compute sizes, for each grid cell.
+        uint[] num = {
+            mInfluenceTree[0].GetNumPoints( 0 ) ,
+            mInfluenceTree[0].GetNumPoints( 1 ) ,
+            mInfluenceTree[0].GetNumPoints( 2 )
+        };
+        uint numXY = num[0] * num[1];
+        uint[] idx = new uint[3];
+        for (idx[2] = 0; idx[2] < num[2]; ++idx[2])
+        {
+           uint zShift = idx[2] * numXY;
+            for (idx[1] = 0; idx[1] < num[1]; ++idx[1])
+            {
+                uint yzShift = idx[1] * num[0] + zShift;
+                for (idx[0] = 0; idx[0] < num[0]; ++idx[0])
+                {
+                    uint offset = idx[0] + yzShift;
+                    VortonClusterAux rVortonAux = ugAux[offset];
+                    if (rVortonAux.mVortNormSum != float.Epsilon)
+                    {   // This cell contains at least one vorton.
+                        // Normalize weighted position sum to obtain center-of-vorticity.
+                        mInfluenceTree[0][offset].position /= rVortonAux.mVortNormSum;
+                    }
+                }
+            }
+        }
+
+    }
+
+    /*
+        Computes the total circulation and linear impulse of all vortons in this simulation.
+
+        vCirculation - Total circulation, the volume integral of the vorticity.
+        vLinearImpulse - Volume integral of circulation weighted by position.
+    */
+    void ConservedQuantities()
+    {
+        // Zero accumulators.
+        mCirculationInitial = mLinearImpulseInitial = new Vector3(0.0f, 0.0f, 0.0f);
+        int numVortons = mVortons.Count;
+        for (int iVorton = 0; iVorton < numVortons; ++iVorton)
+        {   // For each vorton in this simulation...
+            Vorton Vorton = mVortons[iVorton];
+            float volumeElement = (mVortons[iVorton].radius * mVortons[iVorton].radius * mVortons[iVorton].radius) * 8.0f;
+            // Accumulate total circulation.
+            mCirculationInitial += mVortons[iVorton].vorticity * volumeElement;
+            // Accumulate total linear impulse.
+            mLinearImpulseInitial += Vector3.Cross(mVortons[iVorton].position, mVortons[iVorton].vorticity * volumeElement);
+        }
+    }
+
+    /*
+        Computes the average vorticity of all the vortons in this simulation.
+        This is use to compute a hacky, non-physical aproximation to viscous vortex diffusion.
+    */
+    void ComputeAverageVorticity()
+    {
+        mAverageVorticity = Vector3.zero;
+        int numVortons = mVortons.Count;
+        for (int iVorton = 0; iVorton < numVortons; ++iVorton)
+        {   // For each vorton in this simulation...
+            mAverageVorticity += mVortons[iVorton].vorticity;
+        }
+        mAverageVorticity /= (float)numVortons;
     }
 
     public void AddVorton(Vorton vorton)
@@ -115,6 +291,33 @@ public class VortonSim
         mInfluenceTree.Clear();
         mVelGrid.Clear();
         mTracers.Clear();
+    }
+
+    void FindBoundingBox()
+    {
+        int numVortons = mVortons.Count;
+        mMinCorner.x = mMinCorner.y = mMinCorner.z = float.MaxValue;
+        mMaxCorner = -mMinCorner;
+
+        for (int iVorton = 0; iVorton < numVortons; ++iVorton)
+        {   // For each vorton in this simulation...
+            // Find corners of axis-aligned bounding box.
+            UpdateBoundingBox(ref mMinCorner, ref mMaxCorner, mVortons[iVorton].position);
+        }
+
+        //const size_t numTracers = mTracers.Size();
+        //for (unsigned iTracer = 0; iTracer < numTracers; ++iTracer)
+        //{   // For each passive tracer particle in this simulation...
+        //    const Particle &rTracer = mTracers[iTracer];
+        //    // Find corners of axis-aligned bounding box.
+        //    UpdateBoundingBox(mMinCorner, mMaxCorner, rTracer.mPosition);
+        //}
+
+        // Slightly enlarge bounding box to allow for round-off errors.
+        Vector3 extent = (mMaxCorner - mMinCorner) ;
+        Vector3 nudge = (extent * global.GlobalVar.FLT_EPSILON) ;
+        mMinCorner -= nudge;
+        mMaxCorner += nudge;
     }
 
     /*
@@ -142,6 +345,55 @@ public class VortonSim
         mTracers.RemoveAt(iTracer);        
     }
 
+    public void DebugDrawVortons()
+    {
+        for (int i = 0; i < mVortons.Count; ++i)
+        {
+            Gizmos.color = new Color(0.8f, 0.8f, 1, 0.5f);
+            Gizmos.DrawSphere(mVortons[i].position, mVortons[i].radius);
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(mVortons[i].position, mVortons[i].position + mVortons[i].vorticity.normalized * mVortons[i].radius);
+        }
+    }
+
+    public void DebugDrawInfluenceGrid()
+    {        
+        if (mInfluenceTree != null && mInfluenceTree.mLayers.Count != 0)
+        {
+            for (int u = 0; u < mInfluenceTree.mLayers.Count; ++u)
+            {
+                //if (u != 0) continue;
+                UniformGrid<Vorton> grid = mInfluenceTree.mLayers[u];
+
+                //Gizmos.color = new Vector4(1, 1 - 1 / ((float)u + 1), 1 - 1 / ((float)u + 1), 1.1f - 1 / ((float)u + 1));
+
+                Vector3 cellExtent = grid.GetCellExtent();
+                Vector3 gridExtent = grid.GetExtent();
+                Vector3 numCells = new Vector3(grid.GetNumCells(0), grid.GetNumCells(1), grid.GetNumCells(2));
+                Vector3 gridOrigin = grid.GetMinCorner();
+
+                for (int i = 0; i < numCells.x; ++i)
+                {
+                    for (int j = 0; j < numCells.y; ++j)
+                    {
+                        for (int k = 0; k < numCells.z; ++k)
+                        {
+                            if (mInfluenceTree[0][0] == null) break;
+
+                            uint[] indices = { (uint)i, (uint)j, (uint)k };
+                            uint offset = mInfluenceTree[(uint)u].OffsetFromIndices(indices);
+                            float vorticity = mInfluenceTree[(uint)u][offset].vorticity.magnitude;
+
+                            Gizmos.color = new Vector4(vorticity, u/mInfluenceTree.mLayers.Count, u/mInfluenceTree.mLayers.Count, vorticity);
+                            Gizmos.DrawWireCube(gridOrigin + new Vector3(cellExtent.x * i + cellExtent.x / 2, cellExtent.y * j + cellExtent.y / 2, cellExtent.z * k + cellExtent.z / 2), cellExtent);
+                            
+                        }
+                    }
+                }
+            }
+
+        }
+    }
     
 
 }

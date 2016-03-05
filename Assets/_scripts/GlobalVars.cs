@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using System;
 
 namespace global
 {
@@ -43,7 +44,12 @@ namespace global
                 if (size > list.Capacity)   // Optimization
                     list.Capacity = size;
 
-                list.AddRange(System.Linq.Enumerable.Repeat(element, size - count));
+                int elementsToInsert = size - count;
+                for(int i = 0; i < elementsToInsert; ++i)
+                {
+                    list.Add( (T)Activator.CreateInstance(typeof(T), new object[] {}) );
+                }
+                //list.AddRange(System.Linq.Enumerable.Repeat(element, size - count));
             }
         }
     }

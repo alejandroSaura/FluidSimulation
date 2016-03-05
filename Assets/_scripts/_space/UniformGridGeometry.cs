@@ -46,7 +46,11 @@ public class UniformGridGeometry
     */
     public UniformGridGeometry(UniformGridGeometry gridToCopy)
     {
-        // Do nothing
+        mMinCorner = gridToCopy.mMinCorner;
+        mGridExtent = gridToCopy.mGridExtent;
+        mCellExtent = gridToCopy.mCellExtent;
+        mCellsPerExtent = gridToCopy.mCellsPerExtent;
+        mNumPoints = gridToCopy.mNumPoints;
     }
 
     /* 
