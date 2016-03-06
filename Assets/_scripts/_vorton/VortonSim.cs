@@ -17,6 +17,7 @@ public class VortonSim
     {
         set { mUseMultithreads = value; }
     }
+    int numberOfProcessors;
 
     float mViscosity;   ///< Viscosity.  Used to compute viscous diffusion.
     public float viscosity
@@ -80,7 +81,7 @@ public class VortonSim
         if (mUseMultithreads)
         {
             // Query environment for number of processors on this machine.
-            int numberOfProcessors = SystemInfo.processorCount;
+            numberOfProcessors = SystemInfo.processorCount;
         }
 
         ConservedQuantities();
@@ -114,13 +115,13 @@ public class VortonSim
 
         ComputeVelocityGrid();
 
-        //StretchAndTiltVortons(timeStep, uFrame);
+        StretchAndTiltVortons(timeStep);
 
-        //DiffuseVorticityPSE(timeStep, uFrame);
+        DiffuseVorticityPSE(timeStep);
 
-        //AdvectVortons(timeStep);
+        AdvectVortons(timeStep);
 
-        //AdvectTracers(timeStep, uFrame);
+        AdvectTracers(timeStep);
     }
 
     /*
@@ -163,10 +164,10 @@ public class VortonSim
         numElements = numVortons; // Default approach. Loss of precission when adding tracers... but fast.
 
         //float boundingBoxVolume = (mMaxCorner - mMinCorner).x * (mMaxCorner - mMinCorner).y * (mMaxCorner - mMinCorner).z;
-        //float vortonVolume = 4*(1.0f/3.0f)*Mathf.PI*
+        //float vortonVolume = 4 * (1.0f / 3.0f) * Mathf.PI *
         //    (mVortons[0].radius * mVortons[0].radius * mVortons[0].radius);
-        // Accurate approach that maintains precission. Very Slow.
-        //numElements = boundingBoxVolume / vortonVolume;         
+        ////Accurate approach that maintains precission.Very Slow.
+        //numElements = boundingBoxVolume / vortonVolume;
 
         {
             UniformGrid<Vorton> ugSkeleton = new UniformGrid<Vorton>();   ///< Uniform grid with the same size & shape as the one holding aggregated information about mVortons.
@@ -584,11 +585,282 @@ public class VortonSim
     }
 
 
+    /*
+        Stretch and tilt vortons using velocity field
+        timeStep - amount of time by which to advance simulation
+        uFrame - frame counter
+
+        see J. T. Beale, A convergent three-dimensional vortex method with
+                grid-free stretching, Math. Comp. 46 (1986), 401-24, April.
+
+        This routine assumes CreateInfluenceTree has already executed.
+
+    */
+    void StretchAndTiltVortons(float timeStep)
+    {
+        if ((0.0f == mVelGrid.GetExtent().x)
+        || (0.0f == mVelGrid.GetExtent().y)
+        || (0.0f == mVelGrid.GetExtent().z))
+        {   // Domain is 2D, so stretching & tilting does not occur.
+            return;
+        }
+
+        // Compute all gradients of all components of velocity.
+        UniformGrid<Matrix3x3> velocityJacobianGrid = new UniformGrid<Matrix3x3>(mVelGrid);
+        velocityJacobianGrid.Init();
+
+        UniformGridMath.ComputeJacobian(ref velocityJacobianGrid, mVelGrid);
+
+        int numVortons = mVortons.Count;
+
+        for (int offset = 0; offset < numVortons; ++offset)
+        {   // For each vorton...
+            Matrix3x3 velJac = (Matrix3x3) velocityJacobianGrid.Interpolate(mVortons[offset].position);
+            Vector3 stretchTilt = mVortons[offset].vorticity * velJac;    // Usual way to compute stretching & tilting
+            mVortons[offset].vorticity += /* fudge factor for stability */ 0.5f * stretchTilt * timeStep;
+        }
+
+    }
+
 
     /*
-        Kill the tracer at the given index
+        Diffuse vorticity using a particle strength exchange method.
+
+        This routine partitions space into cells using the same grid
+        as the "base vorton" grid.  Each vorton gets assigned to the
+        cell that contains it.  Then, each vorton exchanges some
+        of its vorticity with its neighbors in adjacent cells.
+
+        This routine makes some simplifying assumptions to speed execution:
+
+            -   Distance does not influence the amount of vorticity exchanged,
+                except in as much as only vortons within a certain region of
+                each other exchange vorticity.  This amounts to saying our kernel,
+                eta, is a top-hat function.
+
+            -   Theoretically, if an adjacent cell contains no vortons
+                then this simulation should generate vorticity within
+                that cell, e.g. by creating a new vorton in the adjacent cell.
+
+            -   This simulation reduces the vorticity of each vorton, alleging
+                that this vorticity is dissipated analogously to how energy
+                dissipates at Kolmogorov microscales.  This treatment is not
+                realistic but it retains qualitative characteristics that we
+                want, e.g. that the flow dissipates at a rate related to viscosity.
+                Dissipation in real flows is a more complicated phenomenon.
+
+        see Degond & Mas-Gallic (1989): The weighted particle method for
+            convection-diffusion equations, part 1: the case of an isotropic viscosity.
+            Math. Comput., v. 53, n. 188, pp. 485-507, October.
+
+        timeStep - amount of time by which to advance simulation      
+
+        This routine assumes CreateInfluenceTree has already executed.
+
     */
-    void KillTracer(int iTracer)
+    void DiffuseVorticityPSE( float timeStep)
+    {
+        // Phase 1: Partition vortons
+
+        // Create a spatial partition for the vortons.
+        // Each cell contains a dynamic array of integers
+        // whose values are offsets into mVortons.
+        UniformGrid<IntList> ugVortRef = new UniformGrid<IntList>(mInfluenceTree[0] );
+        ugVortRef.Init() ;
+
+        int numVortons = mVortons.Count;
+
+        for(int offset = 0 /* Start at 0th vorton */ ; offset<numVortons ; ++ offset )
+        {   // For each vorton...            
+            // Insert the vorton's offset into the spatial partition.
+            ugVortRef[mVortons[offset].position].list.Add(offset);
+        }
+
+        // Phase 2: Exchange vorticity with nearest neighbors
+
+        uint nx = ugVortRef.GetNumPoints( 0 ) ;
+        uint nxm1 = nx - 1;
+        uint ny = ugVortRef.GetNumPoints( 1 ) ;
+        uint nym1 = ny - 1;
+        uint nxy = nx * ny;
+        uint nz = ugVortRef.GetNumPoints( 2 ) ;
+        uint nzm1 = nz - 1;
+
+        uint[] idx = new uint[3];
+        for( idx[2] = 0 ; idx[2] < nzm1 ; ++ idx[2] )
+        {   // For all points along z except the last...
+
+            uint offsetZ0 = idx[2] * nxy;
+            uint offsetZp = (idx[2] + 1) * nxy;
+
+            for( idx[1] = 0 ; idx[1] < nym1 ; ++ idx[1] )
+            {   // For all points along y except the last...
+
+                uint offsetY0Z0 = idx[1] * nx + offsetZ0;
+                uint offsetYpZ0 = (idx[1] + 1) * nx + offsetZ0;
+                uint offsetY0Zp = idx[1] * nx + offsetZp;
+
+                for( idx[0] = 0 ; idx[0] < nxm1 ; ++ idx[0] )
+                {   // For all points along x except the last...
+
+                    uint offsetX0Y0Z0 = idx[0] + offsetY0Z0;
+
+                    for( int ivHere = 0; ivHere<ugVortRef[offsetX0Y0Z0].list.Count ; ++ ivHere )
+                    {   // For each vorton in this gridcell...
+
+                        int rVortIdxHere  = ugVortRef[offsetX0Y0Z0].list[ivHere] ;
+                        Vorton rVortonHere = mVortons[rVortIdxHere] ;
+                        Vector3 rVorticityHere  = rVortonHere.vorticity ;
+
+                        // Diffuse vorticity with other vortons in this same cell:
+                        for( int ivThere = ivHere + 1; ivThere<ugVortRef[offsetX0Y0Z0].list.Count ; ++ ivThere )
+                        {   // For each OTHER vorton within this same cell...
+
+                            int rVortIdxThere = ugVortRef[offsetX0Y0Z0].list[ivThere] ;
+                            Vorton rVortonThere    = mVortons[rVortIdxThere] ;
+                            Vector3 rVorticityThere = rVortonThere.vorticity ;
+
+                            Vector3 vortDiff = rVorticityHere - rVorticityThere;
+                            Vector3 exchange = 2.0f * mViscosity * timeStep * vortDiff;    // Amount of vorticity to exchange between particles.
+
+                            mVortons[rVortIdxHere].vorticity -= exchange ;   // Make "here" vorticity a little closer to "there".
+                            mVortons[rVortIdxThere].vorticity += exchange ;   // Make "there" vorticity a little closer to "here".
+                        }
+
+                        // Diffuse vorticity with vortons in adjacent cells:
+                        {
+                            uint offsetXpY0Z0 = idx[0] + 1 + offsetY0Z0; // offset of adjacent cell in +X direction
+                            for( int ivThere = 0; ivThere<ugVortRef[offsetXpY0Z0].list.Count ; ++ ivThere )
+                            {   // For each vorton in the adjacent cell in +X direction...
+
+                                int rVortIdxThere = ugVortRef[offsetXpY0Z0].list[ivThere] ;
+                                Vorton rVortonThere = mVortons[rVortIdxThere] ;
+                                Vector3  rVorticityThere = rVortonThere.vorticity ;
+
+                                Vector3 vortDiff = rVorticityHere - rVorticityThere;
+                                Vector3 exchange = mViscosity * timeStep * vortDiff;    // Amount of vorticity to exchange between particles.
+
+                                mVortons[rVortIdxHere].vorticity -= exchange ;   // Make "here" vorticity a little closer to "there".
+                                mVortons[rVortIdxThere].vorticity += exchange ;   // Make "there" vorticity a little closer to "here".
+                            }
+                        }
+
+                        {
+                            uint offsetX0YpZ0 = idx[0] + offsetYpZ0; // offset of adjacent cell in +Y direction
+                            for( int ivThere = 0; ivThere<ugVortRef[offsetX0YpZ0].list.Count ; ++ ivThere )
+                            {   // For each vorton in the adjacent cell in +Y direction...
+                                int  rVortIdxThere = ugVortRef[offsetX0YpZ0].list[ivThere] ;
+                                Vorton rVortonThere = mVortons[rVortIdxThere] ;
+                                Vector3 rVorticityThere = rVortonThere.vorticity ;
+
+                                Vector3 vortDiff = rVorticityHere - rVorticityThere;
+                                Vector3 exchange = mViscosity * timeStep * vortDiff;    // Amount of vorticity to exchange between particles.
+
+                                mVortons[rVortIdxHere].vorticity -= exchange ;   // Make "here" vorticity a little closer to "there".
+                                mVortons[rVortIdxThere].vorticity += exchange ;   // Make "there" vorticity a little closer to "here".
+                            }
+                        }
+
+                        {
+                            uint offsetX0Y0Zp = idx[0] + offsetY0Zp; // offset of adjacent cell in +Z direction
+                            for( int ivThere = 0; ivThere<ugVortRef[offsetX0Y0Zp].list.Count ; ++ ivThere )
+                            {   // For each vorton in the adjacent cell in +Z direction...
+                                int rVortIdxThere = ugVortRef[offsetX0Y0Zp].list[ivThere] ;
+                                Vorton rVortonThere = mVortons[rVortIdxThere] ;
+                                Vector3 rVorticityThere = rVortonThere.vorticity ;
+
+                                Vector3 vortDiff = rVorticityHere - rVorticityThere;
+                                Vector3 exchange = mViscosity * timeStep * vortDiff;    // Amount of vorticity to exchange between particles.
+
+                                mVortons[rVortIdxHere].vorticity -= exchange ;   // Make "here" vorticity a little closer to "there".
+                                mVortons[rVortIdxThere].vorticity += exchange ;   // Make "there" vorticity a little closer to "here".
+                            }
+                        }
+
+                        // Dissipate vorticity.  See notes in header comment.
+                        mVortons[rVortIdxHere].vorticity -= mViscosity* timeStep * mVortons[rVortIdxHere].vorticity;   // Reduce "here" vorticity.
+                    }
+                }
+            }
+        }
+    }
+
+
+    /*
+        Advect vortons using velocity field
+
+        timeStep - amount of time by which to advance simulation        
+
+    */
+    void AdvectVortons( float timeStep )
+    {
+        int numVortons = mVortons.Count;
+
+        for( int offset = 0; offset<numVortons ; ++ offset )
+        {   // For each vorton...
+            Vorton rVorton = mVortons[offset] ;
+
+            Vector3 velocity = ((Vector) mVelGrid.Interpolate(rVorton.position)).v;
+            mVortons[offset].position += velocity * timeStep;
+            mVortons[offset].velocity = velocity ;  // Cache this for use in collisions with rigid bodies.
+        }
+    }
+
+    /*
+        Advect passive tracers using velocity field
+
+        timeStep - amount of time by which to advance simulation        
+
+    */
+    void AdvectTracers( float timeStep)
+    {
+        int numTracers = mTracers.Count;
+
+        if (mUseMultithreads)
+        {
+            // Estimate grain size based on size of problem and number of processors.
+            int grainSize = Mathf.Max(1, numTracers / numberOfProcessors);
+            // Advect tracers using multiple threads.
+            //parallel_for(tbb::blocked_range<size_t>(0, numTracers, grainSize), VortonSim_AdvectTracers_TBB(this, timeStep, uFrame));
+        }
+        else
+        {
+            AdvectTracersSlice(timeStep, 0, numTracers);
+        }
+    
+    }
+
+    /*
+        Advect (subset of) passive tracers using velocity field
+
+        timeStep - amount of time by which to advance simulation
+        itStart - index of first tracer to advect
+        itEnd - index of last tracer to advect
+
+    */
+    void AdvectTracersSlice( float timeStep , int itStart, int itEnd )
+    {
+        for( int offset = itStart; offset<itEnd ; ++ offset )
+        {   // For each passive tracer in this slice...
+            Vector3 velocity = ((Vector)mVelGrid.Interpolate(mTracers[offset].position)).v;
+
+            ParticleSystem.Particle newTracer = new ParticleSystem.Particle();
+            newTracer.position = mTracers[offset].position + velocity * timeStep;
+            newTracer.velocity = velocity ; // Cache for use in collisions
+
+            newTracer.startColor = new Color32(255, 255, 255, 50);
+            newTracer.startSize = 0.5f;
+            newTracer.lifetime = 9999;
+
+            mTracers[offset] = newTracer;
+        }
+    }
+
+
+/*
+    Kill the tracer at the given index
+*/
+void KillTracer(int iTracer)
     {
         mTracers.RemoveAt(iTracer);        
     }

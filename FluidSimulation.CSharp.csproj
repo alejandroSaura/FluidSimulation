@@ -69,7 +69,9 @@
     <Compile Include="Assets\_scripts\FluidSimulation.cs" />
     <Compile Include="Assets\_scripts\GlobalVars.cs" />
     <Compile Include="Assets\_scripts\_math\IgridItem.cs" />
+    <Compile Include="Assets\_scripts\_math\IntList.cs" />
     <Compile Include="Assets\_scripts\_math\Matrix3x3.cs" />
+    <Compile Include="Assets\_scripts\_math\UniformGridMath.cs" />
     <Compile Include="Assets\_scripts\_math\Vector.cs" />
     <Compile Include="Assets\_scripts\_space\NestedGrid.cs" />
     <Compile Include="Assets\_scripts\_space\UniformGrid.cs" />

@@ -24,7 +24,13 @@ public class Vorton : IgridItem
         set { mRadius = value; }
     }
     Vector3 mVelocity;   ///< Velocity of this vorton -- used to cache value obtained during advection, to optimize collision response.
-    
+    public Vector3 velocity
+    {
+        get { return mVelocity; }
+        set { mVelocity = value; }
+    }
+
+
     /*
         Construct a vortex particle
     */

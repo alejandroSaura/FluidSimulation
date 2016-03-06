@@ -107,7 +107,7 @@ public class UniformGrid<ItemT> : UniformGridGeometry where ItemT : IgridItem
         Interpolate values from Grid to get value at a given position
         vPosition - position to sample
     */
-    IgridItem Interpolate(Vector3 vPosition)
+    public IgridItem Interpolate(Vector3 vPosition)
     {
         uint[] indices = new uint[3];
         indices = IndicesOfPosition(vPosition);
