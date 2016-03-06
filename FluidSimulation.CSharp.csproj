@@ -65,7 +65,6 @@
   <ItemGroup>
     <Compile Include="Assets\DebugDrawingExtension\DebugExtension.cs" />
     <Compile Include="Assets\DebugDrawingExtension\Example\Example.cs" />
-    <Compile Include="Assets\TestBehaviour.cs" />
     <Compile Include="Assets\_scripts\FluidSimulation.cs" />
     <Compile Include="Assets\_scripts\GlobalVars.cs" />
     <Compile Include="Assets\_scripts\_math\IgridItem.cs" />
