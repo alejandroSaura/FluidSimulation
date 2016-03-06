@@ -67,6 +67,7 @@
     <Compile Include="Assets\DebugDrawingExtension\Example\Example.cs" />
     <Compile Include="Assets\_scripts\FluidSimulation.cs" />
     <Compile Include="Assets\_scripts\GlobalVars.cs" />
+    <Compile Include="Assets\_scripts\ThreadPool.cs" />
     <Compile Include="Assets\_scripts\_math\IgridItem.cs" />
     <Compile Include="Assets\_scripts\_math\IntList.cs" />
     <Compile Include="Assets\_scripts\_math\Matrix3x3.cs" />

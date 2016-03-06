@@ -1,6 +1,25 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
+using System.Threading;
 using System;
+
+
+// Special class that is an argument to the ThreadPool method.
+class ThreadInfo
+{
+    public int begin { get; set; }
+    public int end { get; set; }
+    public float timeStep { get; set; }
+    public VortonSim vortonSim { get; set; }
+    public ManualResetEvent handle { get; set; }
+}
+
+public class myParticle
+{
+    public Vector3 position;
+    public Vector3 velocity;
+}
+
 
 /*
     Dynamic simulation of a fluid, using tiny vortex elements.
@@ -47,6 +66,8 @@ public class VortonSim
     float mMassPerParticle;   ///< Mass of each fluid particle (vorton or tracer).
     public List<ParticleSystem.Particle> mTracers;   ///< Passive tracer particles
 
+    public myParticle[] mTracersAux;
+
 
     // vorton simulation constructor
     public VortonSim(float viscosity = 0.0f, float density = 1.0f, bool useMultithreads = true)
@@ -77,16 +98,14 @@ public class VortonSim
         rigid bodies.
     */
     public void Initialize()
-    {
-        if (mUseMultithreads)
-        {
-            // Query environment for number of processors on this machine.
-            numberOfProcessors = SystemInfo.processorCount;
-        }
+    {        
+        // Query environment for number of processors on this machine.
+        numberOfProcessors = SystemInfo.processorCount;
+        // Initialize pool of multithreading
+        Nyahoon.ThreadPool.InitInstance(10, numberOfProcessors);        
 
         ConservedQuantities();
         ComputeAverageVorticity();
-
         
         CreateInfluenceTree(); // Create influence tree taking into consideration the tracers and the Vortons
         // Calculate particles physic properties
@@ -104,7 +123,6 @@ public class VortonSim
                 );
             mMassPerParticle = totalMass / (float)(mInfluenceTree[0].GetGridCapacity() * numTracersPerCell);
         }
-
 
     }
 
@@ -435,15 +453,84 @@ public class VortonSim
         if (mUseMultithreads)
         {
             // Estimate grain size based on size of problem and number of processors.
-            //const unsigned grainSize = MAX2(1, numZ / gNumberOfProcessors);
-            // Compute velocity grid using multiple threads.
-            //parallel_for(tbb::blocked_range<size_t>(0, numZ, grainSize), VortonSim_ComputeVelocityGrid_TBB(this));
+            int grainSize = (int)Mathf.Max(1, numZ / numberOfProcessors);            
+                        
+            List<ManualResetEvent> handles = new List<ManualResetEvent>();
+            for (var i = 0; i < numberOfProcessors; i++)
+            {
+                ManualResetEvent handle = new ManualResetEvent(false);
+                handles.Add(handle);
+
+                // Send the custom object to the threaded method.
+                ThreadInfo threadInfo = new ThreadInfo();
+                threadInfo.begin = i * grainSize;
+                threadInfo.end = (i + 1) * grainSize;
+                threadInfo.timeStep = 0;
+                threadInfo.vortonSim = this;
+                threadInfo.handle = handle;
+
+                WaitCallback callBack = new WaitCallback(ComputeVelocityGridSliceThreaded);
+                Nyahoon.ThreadPool.QueueUserWorkItem(callBack, threadInfo);
+            }
+
+            WaitHandle.WaitAll(handles.ToArray());
+            
         }
         else
         {
             ComputeVelocityGridSlice(0, numZ);
         }
         
+    }
+
+
+    void ComputeVelocityGridSliceThreaded(System.Object info)
+    {
+        ThreadInfo threadInfo = (ThreadInfo)info;
+        uint izStart = (uint)threadInfo.begin;
+        uint izEnd = (uint)threadInfo.end;
+
+        VortonSim vortonSim = threadInfo.vortonSim;
+
+        int numLayers = vortonSim.mInfluenceTree.GetDepth();
+
+        Vector3 vMinCorner = vortonSim.mVelGrid.GetMinCorner();
+        float nudge = 1.0f - 2.0f * global.GlobalVar.FLT_EPSILON;
+        Vector3 vSpacing = vortonSim.mVelGrid.GetCellSpacing() * nudge;
+        uint[] dims =   { vortonSim.mVelGrid.GetNumPoints( 0 )
+                        , vortonSim.mVelGrid.GetNumPoints( 1 )
+                        , vortonSim.mVelGrid.GetNumPoints( 2 ) };
+        uint numXY = dims[0] * dims[1];
+        uint[] idx = new uint[3];
+
+        for (idx[2] = izStart; idx[2] < izEnd; ++idx[2])
+        {   // For subset of z index values...
+            Vector3 vPosition;
+            // Compute the z-coordinate of the world-space position of this gridpoint.
+            vPosition.z = vMinCorner.z + (float)(idx[2]) * vSpacing.z;
+            // Precompute the z contribution to the offset into the velocity grid.
+            uint offsetZ = idx[2] * numXY;
+            for (idx[1] = 0; idx[1] < dims[1]; ++idx[1])
+            {   // For every gridpoint along the y-axis...
+                // Compute the y-coordinate of the world-space position of this gridpoint.
+                vPosition.y = vMinCorner.y + (float)(idx[1]) * vSpacing.y;
+                // Precompute the y contribution to the offset into the velocity grid.
+                uint offsetYZ = idx[1] * dims[0] + offsetZ;
+                for (idx[0] = 0; idx[0] < dims[0]; ++idx[0])
+                {   // For every gridpoint along the x-axis...
+                    // Compute the x-coordinate of the world-space position of this gridpoint.
+                    vPosition.x = vMinCorner.x + (float)(idx[0]) * vSpacing.x;
+                    // Compute the offset into the velocity grid.
+                    uint offsetXYZ = idx[0] + offsetYZ;
+
+                    // Compute the fluid flow velocity at this gridpoint, due to all vortons.
+                    uint[] zeros = { 0, 0, 0 }; // Starter indices for recursive algorithm
+                    vortonSim.mVelGrid[offsetXYZ] = vortonSim.ComputeVelocity(vPosition, zeros, numLayers - 1);
+                }
+            }
+        }
+
+        threadInfo.handle.Set();
     }
 
 
@@ -820,8 +907,51 @@ public class VortonSim
         {
             // Estimate grain size based on size of problem and number of processors.
             int grainSize = Mathf.Max(1, numTracers / numberOfProcessors);
+
+            mTracersAux = new myParticle[mTracers.Count];
+
             // Advect tracers using multiple threads.
+            List<ManualResetEvent> handles = new List<ManualResetEvent>();
+            for (var i = 0; i < numberOfProcessors; i++)
+            {
+                ManualResetEvent handle = new ManualResetEvent(false);
+                handles.Add(handle);
+
+                // Send the custom object to the threaded method.
+                ThreadInfo threadInfo = new ThreadInfo();
+                threadInfo.begin = i * grainSize;
+                threadInfo.end = (i+1) * grainSize;
+                threadInfo.timeStep = timeStep;
+                threadInfo.vortonSim = this;
+                threadInfo.handle = handle;                                
+                
+                WaitCallback callBack = new WaitCallback(AdvectTracersSliceThreaded);
+                Nyahoon.ThreadPool.QueueUserWorkItem(callBack, threadInfo);
+            }
+
+            WaitHandle.WaitAll(handles.ToArray());
+
+            // copy properties of aux tracers to real tracers
+
+            for(int i = 0; i < mTracers.Count; ++i)
+            {
+                ParticleSystem.Particle newTracer = new ParticleSystem.Particle();
+                newTracer.position = mTracersAux[i].position;
+                newTracer.velocity = mTracersAux[i].velocity; // Cache for use in collisions
+
+                newTracer.startColor = new Color32(255, 255, 255, 50);
+                newTracer.startSize = 0.5f;
+                newTracer.lifetime = 9999;
+
+                mTracers[i] = newTracer;
+            }
+
             //parallel_for(tbb::blocked_range<size_t>(0, numTracers, grainSize), VortonSim_AdvectTracers_TBB(this, timeStep, uFrame));
+
+
+            //newTracer.startColor = new Color32(255, 255, 255, 50);
+            //newTracer.startSize = 0.5f;
+            //newTracer.lifetime = 9999;
         }
         else
         {
@@ -829,6 +959,31 @@ public class VortonSim
         }
     
     }
+
+    private void AdvectTracersSliceThreaded(System.Object info)
+    {
+        ThreadInfo threadInfo = (ThreadInfo) info;
+        float timeStep = threadInfo.timeStep;
+        int itStart = threadInfo.begin;
+        int itEnd = threadInfo.end;
+
+        VortonSim vortonSim = threadInfo.vortonSim;
+
+        ManualResetEvent handle = threadInfo.handle;
+
+        for (int offset = itStart; offset < itEnd; ++offset)
+        {   // For each passive tracer in this slice...
+            Vector3 velocity = ((Vector)vortonSim.mVelGrid.Interpolate(vortonSim.mTracers[offset].position)).v;
+
+            myParticle newTracer = new myParticle();
+            newTracer.position = vortonSim.mTracers[offset].position + velocity * timeStep;
+            newTracer.velocity = velocity; // Cache for use in collisions            
+
+            vortonSim.mTracersAux[offset] = newTracer;
+        }
+        handle.Set();
+    }
+
 
     /*
         Advect (subset of) passive tracers using velocity field
